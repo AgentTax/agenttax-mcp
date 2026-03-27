@@ -1,0 +1,15 @@
+startCommand:
+  type: stdio
+
+configSchema:
+  type: object
+  required:
+    - apiKey
+  properties:
+    apiKey:
+      type: string
+      description: "AgentTax API key (get one free at https://agenttax.io)"
+
+commandFunction:
+  |-
+  config => ({ command: 'node', args: ['index.js'], env: { AGENTTAX_API_KEY: config.apiKey } })
