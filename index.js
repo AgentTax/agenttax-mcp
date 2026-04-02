@@ -7,6 +7,26 @@ import { z } from "zod";
 const BASE_URL = process.env.AGENTTAX_BASE_URL || "https://agenttax.io";
 const API_KEY = process.env.AGENTTAX_API_KEY || "";
 
+// Classify work type from a plain-English description.
+// Developers can describe what they sold and we auto-classify for tax purposes.
+function classifyWorkType(description) {
+  if (!description) return "content";
+  const d = description.toLowerCase();
+  if (/\b(compute|inference|gpu|process|api[\s-]?call|token)\b/.test(d)) return "compute";
+  if (/\b(research|analysis|analytics|data[\s-]?(process|feed))\b/.test(d)) return "research";
+  if (/\b(consult|advisory|advice|audit)\b/.test(d)) return "consulting";
+  if (/\b(trade|trading|swap|asset)\b/.test(d)) return "trading";
+  return "content"; // Default: SaaS / digital service
+}
+
+const WORK_TYPE_TO_TX_TYPE = {
+  compute: "compute",
+  research: "api_access",
+  content: "saas",
+  consulting: "consulting",
+  trading: "digital_good",
+};
+
 async function apiCall(method, path, body = null) {
   const headers = { "Content-Type": "application/json" };
   if (API_KEY) headers["X-API-Key"] = API_KEY;
@@ -46,6 +66,62 @@ server.tool(
   async (params) => {
     const result = await apiCall("POST", "/api/v1/calculate", params);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ── track_payment ─────────────────────────────────────────────────────────
+// The primary tool for MCP tool developers. Call this after receiving any
+// payment — Stripe, x402, direct, whatever. AgentTax classifies the
+// transaction, calculates your sales tax liability, and logs it.
+server.tool(
+  "track_payment",
+  "Track a payment you received and calculate your sales tax liability. Call this after receiving any payment — Stripe, x402, or direct. Automatically classifies the transaction, calculates tax owed, and logs it to your AgentTax account.",
+  {
+    amount: z.number().positive().describe("Payment amount in USD"),
+    buyer_state: z.string().length(2).describe("2-letter US state where the buyer is located (e.g. TX, NY, CA)"),
+    buyer_zip: z.string().length(5).optional().describe("Buyer's 5-digit zip code for local tax rates (more precise)"),
+    description: z.string().optional().describe("What you sold — used to classify the transaction (e.g. 'API access', 'MCP tool subscription', 'compute credits', 'AI consulting')"),
+    payment_id: z.string().optional().describe("Your payment reference ID for deduplication (Stripe payment_intent ID, x402 receipt, invoice number, etc.)"),
+    source: z.enum(["stripe", "x402", "direct", "other"]).optional().describe("Payment processor used"),
+    is_b2b: z.boolean().optional().describe("Buyer is a business (affects rates in MD, IA, NJ)"),
+  },
+  async (params) => {
+    const workType = classifyWorkType(params.description);
+    const transactionType = WORK_TYPE_TO_TX_TYPE[workType] || "saas";
+    const counterpartyId = params.payment_id || `payment_${Date.now()}`;
+
+    const result = await apiCall("POST", "/api/v1/calculate", {
+      role: "seller",
+      amount: params.amount,
+      buyer_state: params.buyer_state,
+      buyer_zip: params.buyer_zip,
+      transaction_type: transactionType,
+      work_type: workType,
+      counterparty_id: counterpartyId,
+      is_b2b: params.is_b2b || false,
+    });
+
+    if (!result.success) {
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+
+    const taxOwed = result.total_tax || 0;
+    const summary = {
+      payment_tracked: true,
+      source: params.source || "unspecified",
+      amount: params.amount,
+      buyer_state: params.buyer_state,
+      tax_owed: taxOwed,
+      tax_rate: result.sales_tax?.rate || result.combined_rate || 0,
+      taxable: taxOwed > 0,
+      work_type: result.work_type,
+      transaction_id: result.transaction_id,
+      compliance_note: taxOwed > 0
+        ? `$${taxOwed.toFixed(2)} sales tax owed to ${params.buyer_state}. Remit to the state DOR.`
+        : `No sales tax owed in ${params.buyer_state} for this transaction type.`,
+    };
+
+    return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
   }
 );
 
