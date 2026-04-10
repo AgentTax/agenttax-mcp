@@ -35,7 +35,29 @@ async function apiCall(method, path, body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   const resp = await fetch(`${BASE_URL}${path}`, opts);
-  return resp.json();
+  const text = await resp.text();
+  let parsed;
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`AgentTax ${resp.status}: non-JSON response: ${text.slice(0, 200)}`);
+  }
+  if (!resp.ok) {
+    const msg = parsed?.error || parsed?.message || `HTTP ${resp.status}`;
+    const err = new Error(`AgentTax ${resp.status}: ${msg}`);
+    err.status = resp.status;
+    err.body = parsed;
+    throw err;
+  }
+  return parsed;
+}
+
+function toolError(e) {
+  const body = e.body ? `\n${JSON.stringify(e.body, null, 2)}` : "";
+  return {
+    content: [{ type: "text", text: `AgentTax error: ${e.message}${body}` }],
+    isError: true,
+  };
 }
 
 const server = new McpServer({
@@ -64,8 +86,12 @@ server.tool(
     seller_remitting: z.boolean().optional().describe("Whether the seller is already collecting tax"),
   },
   async (params) => {
-    const result = await apiCall("POST", "/api/v1/calculate", params);
-    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    try {
+      const result = await apiCall("POST", "/api/v1/calculate", params);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return toolError(e);
+    }
   }
 );
 
@@ -86,42 +112,49 @@ server.tool(
     is_b2b: z.boolean().optional().describe("Buyer is a business (affects rates in MD, IA, NJ)"),
   },
   async (params) => {
-    const workType = classifyWorkType(params.description);
-    const transactionType = WORK_TYPE_TO_TX_TYPE[workType] || "saas";
-    const counterpartyId = params.payment_id || `payment_${Date.now()}`;
+    try {
+      const workType = classifyWorkType(params.description);
+      const transactionType = WORK_TYPE_TO_TX_TYPE[workType] || "saas";
+      const counterpartyId = params.payment_id || `payment_${Date.now()}`;
 
-    const result = await apiCall("POST", "/api/v1/calculate", {
-      role: "seller",
-      amount: params.amount,
-      buyer_state: params.buyer_state,
-      buyer_zip: params.buyer_zip,
-      transaction_type: transactionType,
-      work_type: workType,
-      counterparty_id: counterpartyId,
-      is_b2b: params.is_b2b || false,
-    });
+      const result = await apiCall("POST", "/api/v1/calculate", {
+        role: "seller",
+        amount: params.amount,
+        buyer_state: params.buyer_state,
+        buyer_zip: params.buyer_zip,
+        transaction_type: transactionType,
+        work_type: workType,
+        counterparty_id: counterpartyId,
+        is_b2b: params.is_b2b || false,
+      });
 
-    if (!result.success) {
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      if (!result.success) {
+        return {
+          content: [{ type: "text", text: `AgentTax returned success=false:\n${JSON.stringify(result, null, 2)}` }],
+          isError: true,
+        };
+      }
+
+      const taxOwed = result.total_tax || 0;
+      const summary = {
+        payment_tracked: true,
+        source: params.source || "unspecified",
+        amount: params.amount,
+        buyer_state: params.buyer_state,
+        tax_owed: taxOwed,
+        tax_rate: result.sales_tax?.rate || result.combined_rate || 0,
+        taxable: taxOwed > 0,
+        work_type: result.work_type,
+        transaction_id: result.transaction_id,
+        compliance_note: taxOwed > 0
+          ? `$${taxOwed.toFixed(2)} sales tax owed to ${params.buyer_state}. Remit to the state DOR.`
+          : `No sales tax owed in ${params.buyer_state} for this transaction type.`,
+      };
+
+      return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
+    } catch (e) {
+      return toolError(e);
     }
-
-    const taxOwed = result.total_tax || 0;
-    const summary = {
-      payment_tracked: true,
-      source: params.source || "unspecified",
-      amount: params.amount,
-      buyer_state: params.buyer_state,
-      tax_owed: taxOwed,
-      tax_rate: result.sales_tax?.rate || result.combined_rate || 0,
-      taxable: taxOwed > 0,
-      work_type: result.work_type,
-      transaction_id: result.transaction_id,
-      compliance_note: taxOwed > 0
-        ? `$${taxOwed.toFixed(2)} sales tax owed to ${params.buyer_state}. Remit to the state DOR.`
-        : `No sales tax owed in ${params.buyer_state} for this transaction type.`,
-    };
-
-    return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
   }
 );
 
@@ -142,8 +175,12 @@ server.tool(
     notes: z.string().optional().describe("Free-text notes about the trade"),
   },
   async (params) => {
-    const result = await apiCall("POST", "/api/v1/trades", params);
-    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    try {
+      const result = await apiCall("POST", "/api/v1/trades", params);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return toolError(e);
+    }
   }
 );
 
@@ -158,13 +195,17 @@ server.tool(
     explain: z.boolean().optional().describe("Include human-readable explanations for the rate and taxability"),
   },
   async (params) => {
-    const query = new URLSearchParams();
-    if (params.state) query.set("state", params.state);
-    if (params.format) query.set("format", params.format);
-    if (params.explain) query.set("explain", "true");
-    const qs = query.toString();
-    const result = await apiCall("GET", `/api/v1/rates${qs ? "?" + qs : ""}`);
-    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    try {
+      const query = new URLSearchParams();
+      if (params.state) query.set("state", params.state);
+      if (params.format) query.set("format", params.format);
+      if (params.explain) query.set("explain", "true");
+      const qs = query.toString();
+      const result = await apiCall("GET", `/api/v1/rates${qs ? "?" + qs : ""}`);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return toolError(e);
+    }
   }
 );
 
@@ -182,8 +223,12 @@ server.tool(
     ).describe("Object with state codes as keys, e.g. { TX: { hasNexus: true, reason: '...' } }"),
   },
   async (params) => {
-    const result = await apiCall("POST", "/api/v1/nexus", params);
-    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    try {
+      const result = await apiCall("POST", "/api/v1/nexus", params);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return toolError(e);
+    }
   }
 );
 
@@ -193,8 +238,12 @@ server.tool(
   "Check AgentTax API health, available endpoints, pricing tiers, and registry validation status.",
   {},
   async () => {
-    const result = await apiCall("GET", "/api/v1/health");
-    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    try {
+      const result = await apiCall("GET", "/api/v1/health");
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return toolError(e);
+    }
   }
 );
 
