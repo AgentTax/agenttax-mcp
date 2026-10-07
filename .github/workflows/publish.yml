@@ -1,0 +1,61 @@
+name: Publish
+
+# Push a tag like v1.1.0 to publish @agenttax/mcp-server to npm and list it in
+# the official MCP Registry (registry.modelcontextprotocol.io).
+# Needs one repo secret: NPM_TOKEN (an npm automation token with publish rights
+# on the @agenttax scope). The registry login uses this workflow's GitHub OIDC
+# token, which proves ownership of the io.github.AgentTax namespace.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
+
+      - name: Versions agree (tag, package.json, server.json)
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          SRV=$(node -p "require('./server.json').version")
+          SRVPKG=$(node -p "require('./server.json').packages[0].version")
+          NAME=$(node -p "require('./package.json').mcpName")
+          SRVNAME=$(node -p "require('./server.json').name")
+          echo "package=$PKG server=$SRV server.packages=$SRVPKG"
+          test "$PKG" = "$SRV" && test "$PKG" = "$SRVPKG" && test "$NAME" = "$SRVNAME"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then test "${GITHUB_REF_NAME}" = "v$PKG"; fi
+
+      - name: Server starts and lists its tools
+        run: |
+          node --check index.js
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | timeout 10 node index.js | tee /tmp/out.jsonl
+          grep -q '"get_nexus_thresholds"' /tmp/out.jsonl
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to the MCP Registry
+        run: |
+          curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

@@ -1,7 +1,7 @@
 ---
 name: agenttax
 description: Tax compliance for AI agent transactions — sales tax, capital gains, nexus monitoring, 1099 tracking.
-version: 1.0.0
+version: 1.1.0
 metadata:
   openclaw:
     requires:
@@ -33,12 +33,12 @@ API docs: https://agenttax.io/api/v1/agents
 
 All requests use the header: `X-API-Key: $AGENTTAX_API_KEY`
 
-Get a free API key (100 calls/month):
+Get a free API key (1,500 calls/month):
 
 ```bash
 curl -s -X POST https://agenttax.io/api/v1/auth/signup \
   -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com", "password": "securepass", "agent_name": "my-agent"}'
+  -d '{"email": "you@example.com", "password": "securepass", "agent_name": "my-agent", "agent_work_type": "compute"}'
 ```
 
 Save the `api_key.key` from the response — it is only shown once.
@@ -150,4 +150,4 @@ All errors return `{ "success": false, "error": "message", "agent_guide": "https
 
 - 400: Bad request — check `error` and `errors` fields
 - 401: Invalid or missing API key
-- 429: Rate limited (free tier: 100 calls/month)
+- 429: Rate limited (free tier: 1,500 calls/month)
