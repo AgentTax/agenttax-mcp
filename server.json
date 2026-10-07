@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.AgentTax/agenttax-mcp",
+  "title": "AgentTax",
+  "description": "US sales/use tax, nexus thresholds, capital gains and 1099-DA tools for AI agent transactions.",
+  "version": "1.1.0",
+  "websiteUrl": "https://agenttax.io",
+  "repository": {
+    "url": "https://github.com/AgentTax/agenttax-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@agenttax/mcp-server",
+      "version": "1.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "AGENTTAX_API_KEY",
+          "description": "AgentTax API key (free tier at agenttax.io). Optional: without it the server runs in demo mode, 50 calls/day.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

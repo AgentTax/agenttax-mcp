@@ -81,15 +81,33 @@ Add to your MCP config file:
 }
 ```
 
-Demo mode works without a key (50 calls/day, no account required).
+Demo mode works without a key (50 calls/day, no account required). Tools marked "Yes" below need `AGENTTAX_API_KEY`.
 
 ---
 
 ## Tools
 
-### track_payment
+| Tool | What it does | Key needed |
+|---|---|---|
+| `track_payment` | Log a payment you received and get your sales tax liability. The main tool for paid MCP servers and APIs. | Demo works; key for history |
+| `calculate_tax` | Full sales/use tax calculation with jurisdiction breakdown, audit trail, confidence score and advisories | Demo works; key for full response |
+| `ingest_transactions` | Bulk-log up to 100 transactions (e.g. x402 purchases), idempotent on `external_tx_id` | Yes |
+| `list_transactions` | Your transaction history with running totals | Yes |
+| `get_nexus_thresholds` | Each state's economic nexus thresholds (revenue / transaction count), notes and DOR source | No |
+| `get_nexus` | The states you have configured nexus in | Yes |
+| `configure_nexus` | Set the states you have nexus in (merge semantics) | Yes |
+| `log_trade` | Log a buy/sell; sells return realized gain/loss with cost basis | Yes |
+| `list_trades` | Trades you have logged | Yes |
+| `export_1099_da` | Draft Form 1099-DA payload for realized digital-asset gains | Yes (Pro) |
+| `get_rates` | State sales tax rates and digital-goods taxability, all 51 jurisdictions or one | No |
+| `get_local_rate` | Combined state + local rate for a zip code | No |
+| `get_capital_gains_rates` | State short/long-term capital gains rates | No |
+| `get_pricing` | Machine-readable pricing contract | No |
+| `check_health` | API health and endpoint list | No |
 
-Track a payment you received and calculate your sales tax liability. The primary tool for MCP tool developers.
+Read-only tools carry the MCP `readOnlyHint` annotation so clients can auto-approve them.
+
+### track_payment
 
 ```
 track_payment({
@@ -102,79 +120,40 @@ track_payment({
 })
 ```
 
-Returns:
-```json
-{
-  "payment_tracked": true,
-  "amount": 49.00,
-  "buyer_state": "TX",
-  "tax_owed": 4.04,
-  "tax_rate": 0.0825,
-  "taxable": true,
-  "work_type": "content",
-  "transaction_id": "atx_...",
-  "compliance_note": "$4.04 sales tax owed to TX. Remit to the state DOR."
-}
-```
-
-Transaction classification is automatic. Set `description` to what you sold for best results, or pass an explicit `work_type` via the Stripe metadata field.
+Returns `tax_owed`, `tax_rate`, `taxable`, `transaction_id` and a `compliance_note`. Classification comes from `description`. Sellers get $0 in states where no nexus is configured; the response says so in `nexus_warning`.
 
 ### calculate_tax
 
-Full tax calculation with complete audit trail. Use this when you need jurisdiction details, confidence scoring, and advisories.
-
 ```
 calculate_tax({
-  role: "seller",
+  role: "buyer",
   amount: 500,
   buyer_state: "TX",
   buyer_zip: "78701",
-  transaction_type: "saas",
-  work_type: "content",
-  counterparty_id: "customer-abc",
-  is_b2b: false
+  transaction_type: "compute",
+  work_type: "compute",
+  counterparty_id: "seller-agent-123",
+  is_b2b: true
 })
 ```
 
-### log_trade
+Optional fields: `seller_state` / `seller_zip` (origin-sourced intrastate sales in TX, UT, AZ, TN and some OH sales), `use_context` (Maryland B2B), `digital_content_type` (with `transaction_type: "digital_good"`), `seller_remitting`.
 
-Log a buy or sell for capital gains tracking.
-
-```
-log_trade({
-  asset_symbol: "COMPUTE",
-  trade_type: "buy",
-  quantity: 100,
-  price_per_unit: 12.50
-})
-```
-
-Sell trades return realized gain/loss with cost basis (FIFO, LIFO, or Specific ID).
-
-### get_rates
-
-Get tax rates for all 51 US jurisdictions or a single state.
+### Nexus
 
 ```
-get_rates({ state: "TX", explain: true })
+get_nexus_thresholds({ state: "NY" })          // what triggers registration
+configure_nexus({ nexus: { TX: { hasNexus: true, reason: "Economic nexus" } } })
+get_nexus()                                     // what you have configured
 ```
 
-### configure_nexus
-
-Set which states you have economic nexus in. Required for sellers to get non-zero tax results.
+### Capital gains and 1099-DA
 
 ```
-configure_nexus({
-  nexus: {
-    TX: { hasNexus: true, reason: "Economic nexus" },
-    NY: { hasNexus: true, reason: "Physical presence" }
-  }
-})
+log_trade({ asset_symbol: "ETH", trade_type: "buy", quantity: 2, price_per_unit: 2500, asset_class: "crypto" })
+log_trade({ asset_symbol: "ETH", trade_type: "sell", quantity: 1, price_per_unit: 3100, asset_class: "crypto" })
+export_1099_da({ year: 2026 })                  // draft, not a filed return
 ```
-
-### check_health
-
-Check API health and available endpoints.
 
 ---
 
@@ -183,20 +162,22 @@ Check API health and available endpoints.
 ```bash
 curl -X POST https://agenttax.io/api/v1/auth/signup \
   -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com", "password": "securepass", "agent_name": "my-mcp-server"}'
+  -d '{"email": "you@example.com", "password": "securepass", "agent_name": "my-mcp-server", "agent_work_type": "compute"}'
 ```
 
-Save the `api_key.key` from the response — it's only shown once.
+All four fields are required; `agent_work_type` is one of `compute`, `research`, `information_service`, `content`, `consulting`, `trading`. Save the `api_key.key` from the response — it's only shown once.
 
 ## Pricing
 
 | Tier | Price | Calls/month |
 |------|-------|-------------|
-| Free | $0 | 100 |
+| Free | $0 | 1,500 |
 | Starter | $25/mo | 10,000 |
 | Growth | $99/mo | 100,000 |
 | Pro | $199/mo | 1,000,000 |
-| x402 | ~$0.001/call | Pay-per-call, no signup |
+| x402 | $0.005/call in USDC on Base | Pay per call, no signup |
+
+Current machine-readable pricing: `get_pricing` or `GET https://agenttax.io/api/v1/pricing`.
 
 ## Links
 
