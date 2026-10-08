@@ -50,7 +50,13 @@ jobs:
           grep -q '"get_nexus_thresholds"' /tmp/out.jsonl
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: |
+          PKG=$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")
+          if npm view "$PKG" version >/dev/null 2>&1; then
+            echo "$PKG is already on npm; skipping publish."
+          else
+            npm publish --access public --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -58,4 +64,9 @@ jobs:
         run: |
           curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
           ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
+          # npm can take a few minutes to serve a new version, and the registry
+          # validates against npm, so wait for it and retry.
+          PKG=$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")
+          for i in $(seq 1 20); do npm view "$PKG" version >/dev/null 2>&1 && break; sleep 15; done
+          for i in 1 2 3 4 5; do ./mcp-publisher publish && exit 0; sleep 30; done
+          exit 1
