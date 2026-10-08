@@ -25,7 +25,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
+          # No registry-url: it writes an .npmrc with a placeholder auth token
+          # that npm sends instead of doing the OIDC exchange (404 on publish).
 
       # Trusted publishing needs npm 11.5.1+. npm@latest (12.x) needs Node 22+,
       # so pin the major.
