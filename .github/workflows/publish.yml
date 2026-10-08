@@ -61,8 +61,11 @@ jobs:
           if npm view "$PKG" version >/dev/null 2>&1; then
             echo "$PKG is already on npm; skipping publish."
           else
+            npm --version
             npm publish --access public
           fi
+        env:
+          NPM_CONFIG_LOGLEVEL: verbose
 
       - name: Publish to the MCP Registry
         run: |
