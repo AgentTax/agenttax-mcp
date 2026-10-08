@@ -2,8 +2,9 @@ name: Publish
 
 # Push a tag like v1.1.0 to publish @agenttax/mcp-server to npm and list it in
 # the official MCP Registry (registry.modelcontextprotocol.io).
-# Needs one repo secret: NPM_TOKEN (an npm automation token with publish rights
-# on the @agenttax scope). The registry login uses this workflow's GitHub OIDC
+# No secrets. npm publishes through trusted publishing (OIDC): the package's
+# npm settings trust AgentTax/agenttax-mcp publish.yml, and token publishing is
+# disabled on the package. The MCP Registry login uses the same GitHub OIDC
 # token, which proves ownership of the io.github.AgentTax namespace.
 
 on:
@@ -25,6 +26,9 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+
+      # Trusted publishing needs npm 11.5.1+; Node 20 ships npm 10.
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
@@ -55,10 +59,8 @@ jobs:
           if npm view "$PKG" version >/dev/null 2>&1; then
             echo "$PKG is already on npm; skipping publish."
           else
-            npm publish --access public --provenance
+            npm publish --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to the MCP Registry
         run: |
