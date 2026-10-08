@@ -1,8 +1,8 @@
 {
   "name": "@agenttax/mcp-server",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "mcpName": "io.github.AgentTax/agenttax-mcp",
-  "description": "MCP server for AgentTax \u2014 US sales tax, nexus thresholds, capital gains and 1099-DA tools for AI agents",
+  "description": "MCP server for AgentTax — US sales tax, nexus thresholds, capital gains and 1099-DA tools for AI agents",
   "main": "index.js",
   "type": "module",
   "bin": {
@@ -35,7 +35,7 @@
   "homepage": "https://agenttax.io",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AgentTax/agenttax-mcp.git"
+    "url": "git+https://github.com/AgentTax/agenttax-mcp.git"
   },
   "bugs": {
     "url": "https://github.com/AgentTax/agenttax-mcp/issues"
