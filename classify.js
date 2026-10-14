@@ -42,7 +42,10 @@ export function guessWorkType(description) {
 // classification says where the work type came from.
 //
 //   explicit work_type          -> sent as work_type, with its transaction_type
-//   guessed compute / research  -> sent as before (no exemption rides on them)
+//   guessed compute / research  -> sent as in 1.1.1. Not an exemption, but their
+//                                  categories can tax less than SaaS in some states
+//                                  (e.g. CT, MD, SC, TN, WV); changing that is a
+//                                  tax-value decision, so it is left as is.
 //   guessed consulting/trading  -> NOT sent; transaction_type "saas", no work_type
 //   no guess                    -> transaction_type "saas", no work_type
 //   is_b2b                      -> sent only when the caller passed a boolean
@@ -71,7 +74,7 @@ export function buildTrackPaymentRequest(params, { now = Date.now } = {}) {
             work_type: null,
             guess_not_used: guess,
             note:
-              `The description looks like "${guess}", but a guess is never used for an exemption, so this sale was ` +
+              `The description looks like "${guess}", but a guess never takes the ${guess} exemption, so this sale was ` +
               `taxed as a SaaS / digital service. If the sale really is ${guess}, call track_payment again with ` +
               `work_type: "${guess}".`,
           }

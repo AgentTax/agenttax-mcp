@@ -133,13 +133,14 @@ server.registerTool(
     description:
       "Track a payment you received and calculate your sales tax liability. Call this after receiving any payment — Stripe, x402, or direct. " +
       "Calculates tax owed and logs it to your AgentTax account (requires API key for history). " +
-      "Pass work_type when you know what you sold: it is the only way to get a work-type exemption (e.g. AI consulting is exempt in Arizona). " +
-      "Without it the sale is classified from description, but a guess never takes an exemption: a description that looks like consulting or trading is taxed as SaaS.",
+      "Pass work_type when you know what you sold, for an exact answer; it is the only way to get the consulting exemption (AI consulting is exempt in Arizona) or the trading exemption. " +
+      "Without it the sale is classified from description: a description that looks like consulting or trading is taxed as SaaS, never exempt; " +
+      "one that looks like compute or research keeps that classification, which can tax less than SaaS in some states (e.g. CT, MD, SC, TN, WV).",
     inputSchema: {
       amount: z.number().positive().max(100_000_000).describe("Payment amount in USD"),
       buyer_state: stateCode.describe("2-letter US state where the buyer is located (e.g. TX, NY, CA)"),
       buyer_zip: zip5.optional().describe("Buyer's 5-digit zip code for local tax rates (more precise)"),
-      description: z.string().optional().describe("What you sold (e.g. 'API access', 'MCP tool subscription', 'compute credits'). Used only when work_type is not given, and never to grant an exemption"),
+      description: z.string().optional().describe("What you sold (e.g. 'API access', 'MCP tool subscription', 'compute credits'). Used only when work_type is not given; a guess never takes the consulting or trading exemption"),
       work_type: z.enum(WORK_TYPES).optional()
         .describe("What you sold, declared: compute, research, information_service, content, consulting, trading. Overrides description. consulting is an exempt professional service in Arizona"),
       payment_id: z.string().regex(/^[A-Za-z0-9_\-.:@]{1,200}$/).optional()

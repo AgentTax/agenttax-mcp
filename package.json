@@ -12,6 +12,7 @@
     "index.js",
     "classify.js",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "server.json"
   ],
