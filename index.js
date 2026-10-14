@@ -4,31 +4,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createRequire } from "node:module";
 import { z } from "zod";
+import { WORK_TYPES, buildTrackPaymentRequest } from "./classify.js";
 
 const { version: PKG_VERSION } = createRequire(import.meta.url)("./package.json");
 
 const BASE_URL = process.env.AGENTTAX_BASE_URL || "https://agenttax.io";
 const API_KEY = process.env.AGENTTAX_API_KEY || "";
-
-// Classify work type from a plain-English description.
-// Developers can describe what they sold and we auto-classify for tax purposes.
-function classifyWorkType(description) {
-  if (!description) return "content";
-  const d = description.toLowerCase();
-  if (/\b(compute|inference|gpu|process|api[\s-]?call|token)\b/.test(d)) return "compute";
-  if (/\b(research|analysis|analytics|data[\s-]?(process|feed))\b/.test(d)) return "research";
-  if (/\b(consult|advisory|advice|audit)\b/.test(d)) return "consulting";
-  if (/\b(trade|trading|swap|asset)\b/.test(d)) return "trading";
-  return "content"; // Default: SaaS / digital service
-}
-
-const WORK_TYPE_TO_TX_TYPE = {
-  compute: "compute",
-  research: "api_access",
-  content: "saas",
-  consulting: "consulting",
-  trading: "digital_good",
-};
 
 async function apiCall(method, path, body = null) {
   const headers = { "Content-Type": "application/json" };
@@ -71,7 +52,6 @@ const STATES = [
 const stateCode = z.preprocess((v) => (typeof v === "string" ? v.toUpperCase() : v), z.enum(STATES));
 const zip5 = z.string().regex(/^\d{5}$/);
 
-const WORK_TYPES = ["compute", "research", "information_service", "content", "consulting", "trading"];
 const TRANSACTION_TYPES = [
   "compute", "api_access", "data_purchase", "saas", "ai_labor", "storage",
   "digital_good", "consulting", "data_processing", "cloud_infrastructure",
@@ -108,7 +88,8 @@ server.registerTool(
     description:
       "Calculate US sales tax (seller) or use tax (buyer) for an AI agent transaction. Returns tax amount, rate, jurisdiction, " +
       "audit trail, confidence score, and advisories. Sellers get $0 sales tax in states without configured nexus " +
-      "(see configure_nexus); a $0 total means no collection obligation, not necessarily no tax, so read nexus_warning and advisories.",
+      "(see configure_nexus); a $0 total means no collection obligation, not necessarily no tax, so read nexus_warning and advisories. " +
+      "work_type and transaction_type are sent as you give them and treated as declared facts (e.g. consulting is exempt in Arizona), so do not guess them.",
     inputSchema: {
       role: z.enum(["buyer", "seller"]).describe("Your role in the transaction"),
       amount: z.number().positive().max(100_000_000).describe("Transaction amount in USD"),
@@ -121,7 +102,8 @@ server.registerTool(
       seller_zip: zip5.optional()
         .describe("Seller's 5-digit zip. Required for TX/UT/AZ/TN origin-sourced intrastate sales and intrastate OH license/digital_good sales"),
       work_type: z.enum(WORK_TYPES).optional()
-        .describe("What the agent's work is economically; drives per-state taxability (compute, research, information_service, content, consulting, trading)"),
+        .describe("What the agent's work is economically; drives per-state taxability (compute, research, information_service, content, consulting, trading). " +
+          "Pass it only when you know it: it is a declaration. consulting is an exempt professional service in Arizona"),
       is_b2b: z.boolean().optional().describe("Business-to-business transaction (triggers state B2B rules, e.g. IA, MD)"),
       use_context: z.enum(["enterprise_system", "individual", "mixed"]).optional()
         .describe("Maryland only, with is_b2b=true: whether the purchase is solely for use in an enterprise computer system"),
@@ -150,35 +132,27 @@ server.registerTool(
     title: "Track a payment you received",
     description:
       "Track a payment you received and calculate your sales tax liability. Call this after receiving any payment — Stripe, x402, or direct. " +
-      "Classifies the sale from its description, calculates tax owed, and logs it to your AgentTax account (requires API key for history).",
+      "Calculates tax owed and logs it to your AgentTax account (requires API key for history). " +
+      "Pass work_type when you know what you sold: it is the only way to get a work-type exemption (e.g. AI consulting is exempt in Arizona). " +
+      "Without it the sale is classified from description, but a guess never takes an exemption: a description that looks like consulting or trading is taxed as SaaS.",
     inputSchema: {
       amount: z.number().positive().max(100_000_000).describe("Payment amount in USD"),
       buyer_state: stateCode.describe("2-letter US state where the buyer is located (e.g. TX, NY, CA)"),
       buyer_zip: zip5.optional().describe("Buyer's 5-digit zip code for local tax rates (more precise)"),
-      description: z.string().optional().describe("What you sold — used to classify the transaction (e.g. 'API access', 'MCP tool subscription', 'compute credits', 'AI consulting')"),
+      description: z.string().optional().describe("What you sold (e.g. 'API access', 'MCP tool subscription', 'compute credits'). Used only when work_type is not given, and never to grant an exemption"),
+      work_type: z.enum(WORK_TYPES).optional()
+        .describe("What you sold, declared: compute, research, information_service, content, consulting, trading. Overrides description. consulting is an exempt professional service in Arizona"),
       payment_id: z.string().regex(/^[A-Za-z0-9_\-.:@]{1,200}$/).optional()
         .describe("Your payment reference ID (Stripe payment_intent ID, x402 receipt, invoice number); letters, digits and _-.:@ only"),
       source: z.enum(["stripe", "x402", "direct", "other"]).optional().describe("Payment processor used"),
-      is_b2b: z.boolean().optional().describe("Buyer is a business (affects rates in MD, IA, NJ)"),
+      is_b2b: z.boolean().optional().describe("Buyer is a business (affects rates in MD, IA, NJ, OH). Omit if unknown: false declares a consumer"),
     },
     annotations: WRITES,
   },
   async (params) => {
     try {
-      const workType = classifyWorkType(params.description);
-      const transactionType = WORK_TYPE_TO_TX_TYPE[workType] || "saas";
-      const counterpartyId = params.payment_id || `payment_${Date.now()}`;
-
-      const result = await apiCall("POST", "/api/v1/calculate", {
-        role: "seller",
-        amount: params.amount,
-        buyer_state: params.buyer_state,
-        buyer_zip: params.buyer_zip,
-        transaction_type: transactionType,
-        work_type: workType,
-        counterparty_id: counterpartyId,
-        is_b2b: params.is_b2b || false,
-      });
+      const { body, classification } = buildTrackPaymentRequest(params);
+      const result = await apiCall("POST", "/api/v1/calculate", body);
 
       if (!result.success) {
         return {
@@ -197,6 +171,7 @@ server.registerTool(
         tax_rate: result.sales_tax?.rate || result.combined_rate || 0,
         taxable: taxOwed > 0,
         work_type: result.work_type,
+        classification,
         transaction_id: result.transaction_id,
         nexus_warning: result.nexus_warning,
         compliance_note: taxOwed > 0
