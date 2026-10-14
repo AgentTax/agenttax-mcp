@@ -115,12 +115,15 @@ track_payment({
   buyer_state: "TX",
   buyer_zip: "78701",
   description: "MCP tool subscription",
+  work_type: "content",
   payment_id: "pi_stripe_abc123",
   source: "stripe"
 })
 ```
 
-Returns `tax_owed`, `tax_rate`, `taxable`, `transaction_id` and a `compliance_note`. Classification comes from `description`. Sellers get $0 in states where no nexus is configured; the response says so in `nexus_warning`.
+Returns `tax_owed`, `tax_rate`, `taxable`, `transaction_id`, a `classification` (where the work type came from) and a `compliance_note`. Sellers get $0 in states where no nexus is configured; the response says so in `nexus_warning`.
+
+**Pass `work_type` explicitly** (`compute` | `research` | `information_service` | `content` | `consulting` | `trading`) when you know what you sold. It is a declaration and gives the exact answer, and it is the only way the consulting or trading exemption applies: for example, AI consulting sold to an Arizona buyer is an exempt professional service (A.R.S. §42-5061(A)(1), TPR 93-48), so `work_type: "consulting"` returns $0 in AZ. Without `work_type` the server guesses from `description`, but a guess never takes the consulting or trading exemption: a description that looks like consulting (e.g. "SOC 2 audit platform subscription") or trading is taxed as SaaS, and `classification.note` tells you to resend with `work_type` if the guess was right. A description that looks like compute or research keeps the 1.1.1 classification, which can tax less than SaaS in some states (e.g. CT, MD, SC, TN, WV); pass `work_type` for an exact answer. Leave `is_b2b` out when you don't know the buyer; `false` declares a consumer. Upgrading from 1.1.1? Some `track_payment` results change; see [CHANGELOG.md](CHANGELOG.md).
 
 ### calculate_tax
 
@@ -137,7 +140,7 @@ calculate_tax({
 })
 ```
 
-Optional fields: `seller_state` / `seller_zip` (origin-sourced intrastate sales in TX, UT, AZ, TN and some OH sales), `use_context` (Maryland B2B), `digital_content_type` (with `transaction_type: "digital_good"`), `seller_remitting`.
+Optional fields: `seller_state` / `seller_zip` (origin-sourced intrastate sales in TX, UT, AZ, TN and some OH sales), `use_context` (Maryland B2B), `digital_content_type` (with `transaction_type: "digital_good"`), `seller_remitting`. `transaction_type` and `work_type` are sent exactly as given and treated as declared facts; don't guess them (`consulting` is exempt in Arizona).
 
 ### Nexus
 

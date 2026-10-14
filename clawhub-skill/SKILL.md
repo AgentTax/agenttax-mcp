@@ -1,7 +1,7 @@
 ---
 name: agenttax
 description: Tax compliance for AI agent transactions — sales tax, capital gains, nexus monitoring, 1099 tracking.
-version: 1.1.0
+version: 1.2.0
 metadata:
   openclaw:
     requires:
@@ -72,7 +72,7 @@ curl -s -X POST https://agenttax.io/api/v1/calculate \
 
 **Optional fields:**
 - `buyer_zip`: 5-digit zip for local rate lookup (recommended — adds city/county tax)
-- `work_type`: `compute`, `research`, `content`, `consulting`, `trading` (drives per-state classification)
+- `work_type`: `compute`, `research`, `information_service`, `content`, `consulting`, `trading` (drives per-state classification). Send it only when you know it: it is a declared fact, not a guess. `consulting` is an exempt professional service in Arizona, and the `consulting` / `trading` exemptions apply only to a declared work type. Send it for an exact answer
 - `is_b2b`: `true`/`false` (affects rates in MD, IA)
 - `seller_remitting`: `true`/`false` (whether seller is collecting tax)
 
