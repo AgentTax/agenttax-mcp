@@ -147,7 +147,7 @@ Optional fields: `seller_state` / `seller_zip` (origin-sourced intrastate sales 
 **`resolution`** in the response says how sure each part of the answer is. `resolution.location`, `resolution.nexus` and `resolution.taxability` each carry a `status` (`resolved`, `partial` or `unknown`), a `basis` (for example `zip_local_rate`, `state_only`, `no_nexus_profile`, `fact_not_declared`) and a `detail` sentence. `total_tax` is always returned, never withheld. If your rule is "unknown means do not charge", branch on the status yourself:
 
 ```js
-// quote = the parsed JSON result of the tool call
+// Pseudo-code. quote = the parsed JSON result of the calculate_tax tool call
 const price = 20;
 const quote = await calculate_tax({
   role: "seller", amount: price, buyer_state: "NY", buyer_zip: "10001",
