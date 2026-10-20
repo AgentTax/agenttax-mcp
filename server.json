@@ -3,7 +3,7 @@
   "name": "io.github.AgentTax/agenttax-mcp",
   "title": "AgentTax",
   "description": "US sales/use tax, nexus thresholds, capital gains and 1099-DA tools for AI agent transactions.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "websiteUrl": "https://agenttax.io",
   "repository": {
     "url": "https://github.com/AgentTax/agenttax-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "@agenttax/mcp-server",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "transport": {
         "type": "stdio"
       },

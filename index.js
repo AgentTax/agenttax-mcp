@@ -89,7 +89,11 @@ server.registerTool(
       "Calculate US sales tax (seller) or use tax (buyer) for an AI agent transaction. Returns tax amount, rate, jurisdiction, " +
       "audit trail, confidence score, and advisories. Sellers get $0 sales tax in states without configured nexus " +
       "(see configure_nexus); a $0 total means no collection obligation, not necessarily no tax, so read nexus_warning and advisories. " +
-      "work_type and transaction_type are sent as you give them and treated as declared facts (e.g. consulting is exempt in Arizona), so do not guess them.",
+      "work_type and transaction_type are sent as you give them and treated as declared facts (e.g. consulting is exempt in Arizona), so do not guess them. " +
+      "The response carries resolution.location / resolution.nexus / resolution.taxability, each with status resolved, partial or unknown plus a basis; " +
+      "total_tax is always returned, so if you want \"unknown means do not charge\", branch on resolution.*.status. " +
+      "Pass intent \"estimate\" to quote before a wallet signs: nothing is saved to history or nexus revenue, but it counts toward your monthly quota. " +
+      "Without intent (or with \"record\"), a keyed call is logged to your history, which is why this tool is annotated as writing even for estimates.",
     inputSchema: {
       role: z.enum(["buyer", "seller"]).describe("Your role in the transaction"),
       amount: z.number().positive().max(100_000_000).describe("Transaction amount in USD"),
@@ -110,8 +114,12 @@ server.registerTool(
       digital_content_type: z.enum(DIGITAL_CONTENT_TYPES).optional()
         .describe("With transaction_type digital_good: what the download is. Several states tax e-books, music and video but not digital art or printables"),
       seller_remitting: z.boolean().optional().describe("Buyer side: whether the seller is already collecting the tax"),
+      intent: z.enum(["estimate", "record"]).optional()
+        .describe("\"estimate\" = quote before a wallet signs; nothing is saved to history or nexus revenue; counts toward your quota. " +
+          "\"record\" (the default with an API key) logs the calculation. Keyless demo calls are always estimates. Omit it if your AgentTax API does not accept intent yet"),
     },
-    annotations: WRITES, // with an API key the calculation is logged to your history
+    // Static annotation: with an API key and no intent "estimate", the calculation is logged to your history.
+    annotations: WRITES,
   },
   async (params) => {
     try {

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+Adds `intent` and documents `resolution` on `calculate_tax`. No result changes when you omit `intent`.
+
+Requires the AgentTax API deploy that accepts `intent` (not yet live as of 2026-10-21); until then omit `intent`.
+
+- **New optional `intent` argument on `calculate_tax`** (`estimate` | `record`). `estimate` quotes a price before a wallet signs: it is computed and counts toward your monthly quota, but nothing is saved to transaction history, it never counts toward nexus revenue, and it ignores the Idempotency-Key. `record` (the default for keyed calls) logs the calculation as before. Keyless demo calls are always estimates. The server sends `intent` only when you pass it, so existing calls are byte-for-byte unchanged.
+- **`resolution` in the `calculate_tax` response** (from the same API deploy). `resolution.location`, `resolution.nexus` and `resolution.taxability` each report `status` (`resolved` | `partial` | `unknown`), `basis` and `detail`. `total_tax` is never withheld; to treat "unknown" as "do not charge", branch on `resolution.*.status`. The README has an example.
+- `calculate_tax` keeps its writing annotation (`readOnlyHint: false`): annotations are static and a keyed call without `intent: "estimate"` still writes to history.
+- No other tool changed.
+
 ## 1.2.0
 
 Tax-safety release for `track_payment`. Some results change; read before upgrading.
