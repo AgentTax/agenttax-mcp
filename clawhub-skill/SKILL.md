@@ -1,7 +1,7 @@
 ---
 name: agenttax
 description: Tax compliance for AI agent transactions — sales tax, capital gains, nexus monitoring, 1099 tracking.
-version: 1.2.0
+version: 1.3.0
 metadata:
   openclaw:
     requires:
@@ -75,8 +75,9 @@ curl -s -X POST https://agenttax.io/api/v1/calculate \
 - `work_type`: `compute`, `research`, `information_service`, `content`, `consulting`, `trading` (drives per-state classification). Send it only when you know it: it is a declared fact, not a guess. `consulting` is an exempt professional service in Arizona, and the `consulting` / `trading` exemptions apply only to a declared work type. Send it for an exact answer
 - `is_b2b`: `true`/`false` (affects rates in MD, IA)
 - `seller_remitting`: `true`/`false` (whether seller is collecting tax)
+- `intent`: `"estimate"` or `"record"`. `"estimate"` quotes before a wallet signs: nothing is saved to history or nexus revenue, but it counts toward your monthly calls. Keyed calls default to `"record"`. Needs the AgentTax API release that accepts `intent`; until then omit it
 
-**Response includes:** `total_tax`, `combined_rate`, `jurisdiction`, `audit_trail`, `confidence`, `advisories`.
+**Response includes:** `total_tax`, `combined_rate`, `jurisdiction`, `audit_trail`, `confidence`, `advisories`, and (from the same API release) `resolution`. `resolution.location`, `resolution.nexus` and `resolution.taxability` each carry `status` (`resolved` | `partial` | `unknown`), `basis` and `detail`. `total_tax` is always returned; to treat "unknown" as "do not charge", branch on `resolution.*.status`.
 
 Sellers: you must configure nexus first (see below) or all calculations return $0.
 
