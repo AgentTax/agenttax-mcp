@@ -59,8 +59,7 @@ Every payment is automatically classified, taxed, and logged. No code changes re
 ### Claude Code
 
 ```bash
-claude mcp add agenttax -- npx @agenttax/mcp-server
-export AGENTTAX_API_KEY=atx_live_your_key
+claude mcp add agenttax -e AGENTTAX_API_KEY=atx_live_your_key -- npx -y @agenttax/mcp-server
 ```
 
 ### Claude Desktop / Cursor / Windsurf
@@ -123,7 +122,7 @@ track_payment({
 
 Returns `tax_owed`, `tax_rate`, `taxable`, `transaction_id`, a `classification` (where the work type came from) and a `compliance_note`. Sellers get $0 in states where no nexus is configured; the response says so in `nexus_warning`.
 
-**Pass `work_type` explicitly** (`compute` | `research` | `information_service` | `content` | `consulting` | `trading`) when you know what you sold. It is a declaration and gives the exact answer, and it is the only way the consulting or trading exemption applies: for example, AI consulting sold to an Arizona buyer is an exempt professional service (A.R.S. §42-5061(A)(1), TPR 93-48), so `work_type: "consulting"` returns $0 in AZ. Without `work_type` the server guesses from `description`, but a guess never takes the consulting or trading exemption: a description that looks like consulting (e.g. "SOC 2 audit platform subscription") or trading is taxed as SaaS, and `classification.note` tells you to resend with `work_type` if the guess was right. A description that looks like compute or research keeps the 1.1.1 classification, which can tax less than SaaS in some states (e.g. CT, MD, SC, TN, WV); pass `work_type` for an exact answer. Leave `is_b2b` out when you don't know the buyer; `false` declares a consumer. Upgrading from 1.1.1? Some `track_payment` results change; see [CHANGELOG.md](CHANGELOG.md).
+**Pass `work_type` explicitly** (`compute` | `research` | `information_service` | `content` | `consulting` | `trading` | `payment_processing` | `web_hosting` | `software_maintenance` | `it_support` | `custom_software`) when you know what you sold. The last five are the classification work types the API added in October 2026: a payment or facilitator fee, hosting the buyer's own site, a software maintenance contract, IT support, and software written for one buyer. Each sends its own `transaction_type` and the API answers with that state's rule for it. It is a declaration and gives the exact answer, and it is the only way the consulting or trading exemption applies: for example, AI consulting sold to an Arizona buyer is an exempt professional service (A.R.S. §42-5061(A)(1), TPR 93-48), so `work_type: "consulting"` returns $0 in AZ. Without `work_type` the server guesses from `description`, but a guess never takes the consulting or trading exemption: a description that looks like consulting (e.g. "SOC 2 audit platform subscription") or trading is taxed as SaaS, and `classification.note` tells you to resend with `work_type` if the guess was right. A description that looks like compute or research keeps the 1.1.1 classification, which can tax less than SaaS in some states (e.g. CT, MD, SC, TN, WV); pass `work_type` for an exact answer. Leave `is_b2b` out when you don't know the buyer; `false` declares a consumer. Upgrading from 1.1.1? Some `track_payment` results change; see [CHANGELOG.md](CHANGELOG.md).
 
 ### calculate_tax
 
@@ -188,7 +187,7 @@ curl -X POST https://agenttax.io/api/v1/auth/signup \
   -d '{"email": "you@example.com", "password": "securepass", "agent_name": "my-mcp-server", "agent_work_type": "compute"}'
 ```
 
-All four fields are required; `agent_work_type` is one of `compute`, `research`, `information_service`, `content`, `consulting`, `trading`. Save the `api_key.key` from the response — it's only shown once.
+All four fields are required; `agent_work_type` is one of `compute`, `research`, `information_service`, `content`, `consulting`, `trading`, `payment_processing`, `web_hosting`, `software_maintenance`, `it_support`, `custom_software`. Save the `api_key.key` from the response — it's only shown once.
 
 ## Pricing
 

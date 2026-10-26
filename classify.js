@@ -2,9 +2,21 @@
 // Kept apart from index.js (which starts the stdio server on import) so it can
 // be unit-tested.
 
-export const WORK_TYPES = ["compute", "research", "information_service", "content", "consulting", "trading"];
+// The work types the AgentTax API accepts (api/_lib/schemas/common.js
+// WORK_TYPES). 1.3.0 adds the five classification work types the API has
+// taken since 2026-10-16; before this the zod enum rejected them, so an MCP
+// caller could not declare a payment fee, hosting, maintenance, IT support or
+// custom software at all. The API decides taxability; nothing here does.
+export const WORK_TYPES = [
+  "compute", "research", "information_service", "content", "consulting", "trading",
+  "payment_processing", "web_hosting", "software_maintenance", "it_support", "custom_software",
+];
 
-// transaction_type sent for each work_type.
+// transaction_type sent for each work_type. The classification work types
+// have their own transaction types (AGENTS.md "Classification facts");
+// custom_software is a work_type on a SaaS/service sale, and without a
+// complete custom_software_attestation the API answers it as prewritten
+// software or SaaS, which is the conservative default a payment log wants.
 export const WORK_TYPE_TO_TX_TYPE = {
   compute: "compute",
   research: "api_access",
@@ -12,6 +24,11 @@ export const WORK_TYPE_TO_TX_TYPE = {
   content: "saas",
   consulting: "consulting",
   trading: "digital_good",
+  payment_processing: "payment_processing_fee",
+  web_hosting: "web_hosting",
+  software_maintenance: "software_maintenance",
+  it_support: "it_support",
+  custom_software: "saas",
 };
 
 // Work types that, in the AgentTax engine, can route a sale to an exemption:

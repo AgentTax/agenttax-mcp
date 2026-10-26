@@ -72,7 +72,7 @@ curl -s -X POST https://agenttax.io/api/v1/calculate \
 
 **Optional fields:**
 - `buyer_zip`: 5-digit zip for local rate lookup (recommended — adds city/county tax)
-- `work_type`: `compute`, `research`, `information_service`, `content`, `consulting`, `trading` (drives per-state classification). Send it only when you know it: it is a declared fact, not a guess. `consulting` is an exempt professional service in Arizona, and the `consulting` / `trading` exemptions apply only to a declared work type. Send it for an exact answer
+- `work_type`: `compute`, `research`, `information_service`, `content`, `consulting`, `trading`, `payment_processing`, `web_hosting`, `software_maintenance`, `it_support`, `custom_software` (drives per-state classification). Send it only when you know it: it is a declared fact, not a guess. `consulting` is an exempt professional service in Arizona, and the `consulting` / `trading` exemptions apply only to a declared work type. Send it for an exact answer
 - `is_b2b`: `true`/`false` (affects rates in MD, IA)
 - `seller_remitting`: `true`/`false` (whether seller is collecting tax)
 - `intent`: `"estimate"` or `"record"`. `"estimate"` quotes before a wallet signs: nothing is saved to history or nexus revenue, but it counts toward your monthly calls. Keyed calls default to `"record"`. Needs the AgentTax API release that accepts `intent`; until then omit it
