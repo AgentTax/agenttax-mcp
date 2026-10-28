@@ -141,7 +141,7 @@ calculate_tax({
 
 Optional fields: `seller_state` / `seller_zip` (origin-sourced intrastate sales in TX, UT, AZ, TN and some OH sales), `use_context` (Maryland B2B), `digital_content_type` (with `transaction_type: "digital_good"`), `seller_remitting`. `transaction_type` and `work_type` are sent exactly as given and treated as declared facts; don't guess them (`consulting` is exempt in Arizona).
 
-**Classification facts** (optional; sent to the API unchanged). Each one applies to one of the classification types; leave it out and the API gives its conservative default for that type.
+**Classification facts** (optional; sent to the API as given, except that `payment_provider_type` and `it_support_scope` are trimmed and lowercased first, as the API does). Each one applies to one of the classification types; leave it out and the API gives its conservative default for that type.
 
 - `payment_provider_type` (`bank` | `licensed_money_transmitter` | `card_network` | `processor_routing_to_bank_or_network` | `other`), with `transaction_type: "payment_processing_fee"`: who provides the payment processing.
 - `it_support_scope` (`help_desk_advice` | `remote_repair_or_config` | `software_installation` | `monitoring` | `security_monitoring` | `managed_bundle`), with `it_support`: what the engagement is. Absent means `managed_bundle`.
@@ -149,7 +149,7 @@ Optional fields: `seller_state` / `seller_zip` (origin-sourced intrastate sales 
 - `custom_software_attestation`, required with `work_type: "custom_software"`; without a complete one the sale is answered as prewritten software / SaaS. Required keys: `written_for_buyer`, `not_offered_to_others`, `deliverable` (`source_code` | `compiled_artifact` | `hosted`), `is_modification_of_prewritten`. Optional state facts: `separately_stated_charge`, `all_rights_transferred`, `delivery` (`electronic` | `tangible`), `il_requirements_analysis_and_adaptation`, `il_assembled_modules_50pct`.
 - `maintenance_contract`, with `transaction_type: "software_maintenance"`. All keys optional: `mandatory`, `includes_upgrades`, `includes_support`, `separately_itemized`, `itemized_amounts` (`{ updates, support }`, summing to `amount`), `update_delivery` (`electronic` | `tangible`), `support_kind` (`help_desk_only` | `includes_fixes`), `seller_sold_software`, `business_use`.
 
-Both objects are strict, as in the API: an unknown key is refused before the call is sent. The facts are your representation and are recorded with the transaction. `track_payment` does not take them; use `calculate_tax` when you have them.
+Both objects are strict, as in the API: an unknown key is refused before the call is sent. The facts are your representation and are recorded with the transaction. `track_payment` does not take them; use `calculate_tax` when you have them. `ingest_transactions` records take the same facts per record and pass them through to the API, which validates them; leave them out and an ingested classification sale gets the conservative answer.
 
 ```
 calculate_tax({

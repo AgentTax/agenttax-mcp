@@ -176,3 +176,33 @@ test("end to end: calculate_tax publishes the facts strictly and forwards them v
     assert.ok(refused, JSON.stringify(r));
   }
 });
+
+// Review 2 (2026-10-28) NIT 6: the API trims and lowercases payment_provider_type,
+// it_support_scope, use_context and digital_content_type before its enum check,
+// so the MCP layer mirrors that instead of refusing "Bank ".
+test("string fact enums are trimmed and lowercased like the API", () => {
+  const r = facts.safeParse({ payment_provider_type: "Bank ", it_support_scope: " Monitoring" });
+  assert.ok(r.success, JSON.stringify(r.error?.issues));
+  assert.equal(r.data.payment_provider_type, "bank");
+  assert.equal(r.data.it_support_scope, "monitoring");
+  assert.equal(facts.safeParse({ payment_provider_type: "Crypto" }).success, false);
+  assert.equal(facts.safeParse({ payment_provider_type: 7 }).success, false);
+});
+
+test("end to end: \"Bank \" is accepted, forwarded as \"bank\", and the schema still lists the enums", async () => {
+  const pay = { ...base, transaction_type: "payment_processing_fee", work_type: "payment_processing", payment_provider_type: "Bank " };
+  const dig = { ...base, transaction_type: "digital_good", digital_content_type: " Art_Image", is_b2b: true, use_context: "Mixed" };
+  const { received, results } = await runServer([{ method: "tools/list", params: {} }, call(pay), call(dig)]);
+  const schema = results[0].result.tools.find((t) => t.name === "calculate_tax").inputSchema;
+  const enumOf = (p) => p.enum || p.anyOf?.find((x) => x.enum)?.enum || p.allOf?.find((x) => x.enum)?.enum;
+  for (const [k, n] of [["payment_provider_type", 5], ["it_support_scope", 6], ["use_context", 3]]) {
+    const values = enumOf(schema.properties[k]);
+    assert.ok(Array.isArray(values) && values.length === n, `${k} schema lost its enum: ${JSON.stringify(schema.properties[k])}`);
+  }
+  assert.ok(enumOf(schema.properties.digital_content_type)?.includes("art_image"));
+  for (const r of results.slice(1)) assert.ok(r.result && !r.result.isError, JSON.stringify(r));
+  assert.equal(received.length, 2);
+  assert.equal(received[0].body.payment_provider_type, "bank");
+  assert.equal(received[1].body.digital_content_type, "art_image");
+  assert.equal(received[1].body.use_context, "mixed");
+});

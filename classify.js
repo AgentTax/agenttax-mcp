@@ -43,16 +43,25 @@ export const MAINTENANCE_SUPPORT_KINDS = ["help_desk_only", "includes_fixes"];
 export const CUSTOM_SOFTWARE_DELIVERABLES = ["source_code", "compiled_artifact", "hosted"];
 export const CUSTOM_SOFTWARE_DELIVERY = ["electronic", "tangible"];
 
+// The API trims and lowercases these string facts before its enum check
+// (api/_lib/schemas/calculate.js: .trim().transform(toLowerCase).pipe(z.enum)),
+// so "Bank " is valid there. Mirror that here, the way index.js stateCode
+// uppercases, so the MCP layer does not refuse what the API accepts. The
+// normalised value is what gets forwarded. The published JSON Schema still
+// shows the enum.
+export const lowerEnum = (values) =>
+  z.preprocess((v) => (typeof v === "string" ? v.trim().toLowerCase() : v), z.enum(values));
+
 // The optional classification facts calculate_tax forwards to the API.
 // Names, nesting, enum values and strictness match calculateRequest in
 // api/_lib/schemas/calculate.js; the API decides what each fact does to the
 // answer. Every field is optional: absent means the API's conservative
 // default.
 export const CLASSIFICATION_FACTS_SHAPE = {
-  payment_provider_type: z.enum(PAYMENT_PROVIDER_TYPES).optional()
+  payment_provider_type: lowerEnum(PAYMENT_PROVIDER_TYPES).optional()
     .describe("With transaction_type payment_processing_fee: who provides the payment processing. " +
       "Changes the answer in some states; absent = the conservative answer. Your representation, recorded with the transaction"),
-  it_support_scope: z.enum(IT_SUPPORT_SCOPES).optional()
+  it_support_scope: lowerEnum(IT_SUPPORT_SCOPES).optional()
     .describe("With transaction_type or work_type it_support: what the remote IT support engagement is. " +
       "Absent = managed_bundle, the per-state default; some states answer specific scopes differently"),
   includes_prewritten_software_access: z.boolean().optional()

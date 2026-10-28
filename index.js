@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createRequire } from "node:module";
 import { z } from "zod";
 import {
-  WORK_TYPES, TRANSACTION_TYPES, DIGITAL_CONTENT_TYPES, CLASSIFICATION_FACTS_SHAPE, buildTrackPaymentRequest,
+  WORK_TYPES, TRANSACTION_TYPES, DIGITAL_CONTENT_TYPES, CLASSIFICATION_FACTS_SHAPE, lowerEnum, buildTrackPaymentRequest,
 } from "./classify.js";
 
 const { version: PKG_VERSION } = createRequire(import.meta.url)("./package.json");
@@ -104,9 +104,9 @@ server.registerTool(
           "Pass it only when you know it: it is a declaration. consulting is an exempt professional service in Arizona. " +
           "custom_software needs a complete custom_software_attestation, or it is answered as prewritten software / SaaS"),
       is_b2b: z.boolean().optional().describe("Business-to-business transaction (triggers state B2B rules, e.g. IA, MD)"),
-      use_context: z.enum(["enterprise_system", "individual", "mixed"]).optional()
+      use_context: lowerEnum(["enterprise_system", "individual", "mixed"]).optional()
         .describe("Maryland only, with is_b2b=true: whether the purchase is solely for use in an enterprise computer system"),
-      digital_content_type: z.enum(DIGITAL_CONTENT_TYPES).optional()
+      digital_content_type: lowerEnum(DIGITAL_CONTENT_TYPES).optional()
         .describe("With transaction_type digital_good: what the download is. Several states tax e-books, music and video but not digital art or printables"),
       seller_remitting: z.boolean().optional().describe("Buyer side: whether the seller is already collecting the tax"),
       intent: z.enum(["estimate", "record"]).optional()
