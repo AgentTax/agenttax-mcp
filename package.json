@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "start": "node index.js",
-    "test": "node --test test/track-payment.test.js test/tools.test.js"
+    "test": "node --test test/track-payment.test.js test/tools.test.js test/enum-parity.test.js test/calculate-facts.test.js"
   },
   "keywords": [
     "1099-da",

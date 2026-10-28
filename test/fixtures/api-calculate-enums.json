@@ -1,0 +1,80 @@
+{
+  "_source": "AgentTax api/_lib/schemas/common.js @ 0c67785",
+  "TRANSACTION_TYPES": [
+    "compute",
+    "api_access",
+    "data_purchase",
+    "saas",
+    "ai_labor",
+    "storage",
+    "digital_good",
+    "consulting",
+    "data_processing",
+    "cloud_infrastructure",
+    "ai_model_access",
+    "marketplace_fee",
+    "subscription",
+    "license",
+    "service",
+    "payment_processing_fee",
+    "web_hosting",
+    "software_maintenance",
+    "it_support"
+  ],
+  "WORK_TYPES": [
+    "compute",
+    "research",
+    "information_service",
+    "content",
+    "consulting",
+    "trading",
+    "payment_processing",
+    "web_hosting",
+    "software_maintenance",
+    "it_support",
+    "custom_software"
+  ],
+  "PAYMENT_PROVIDER_TYPES": [
+    "bank",
+    "licensed_money_transmitter",
+    "card_network",
+    "processor_routing_to_bank_or_network",
+    "other"
+  ],
+  "IT_SUPPORT_SCOPES": [
+    "help_desk_advice",
+    "remote_repair_or_config",
+    "software_installation",
+    "monitoring",
+    "security_monitoring",
+    "managed_bundle"
+  ],
+  "CUSTOM_SOFTWARE_DELIVERABLES": [
+    "source_code",
+    "compiled_artifact",
+    "hosted"
+  ],
+  "CUSTOM_SOFTWARE_DELIVERY": [
+    "electronic",
+    "tangible"
+  ],
+  "MAINTENANCE_UPDATE_DELIVERY": [
+    "electronic",
+    "tangible"
+  ],
+  "MAINTENANCE_SUPPORT_KINDS": [
+    "help_desk_only",
+    "includes_fixes"
+  ],
+  "DIGITAL_CONTENT_TYPES": [
+    "ebook",
+    "audio",
+    "video",
+    "art_image",
+    "photograph",
+    "printable_document",
+    "software",
+    "data",
+    "other"
+  ]
+}

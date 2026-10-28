@@ -141,6 +141,27 @@ calculate_tax({
 
 Optional fields: `seller_state` / `seller_zip` (origin-sourced intrastate sales in TX, UT, AZ, TN and some OH sales), `use_context` (Maryland B2B), `digital_content_type` (with `transaction_type: "digital_good"`), `seller_remitting`. `transaction_type` and `work_type` are sent exactly as given and treated as declared facts; don't guess them (`consulting` is exempt in Arizona).
 
+**Classification facts** (optional; sent to the API unchanged). Each one applies to one of the classification types; leave it out and the API gives its conservative default for that type.
+
+- `payment_provider_type` (`bank` | `licensed_money_transmitter` | `card_network` | `processor_routing_to_bank_or_network` | `other`), with `transaction_type: "payment_processing_fee"`: who provides the payment processing.
+- `it_support_scope` (`help_desk_advice` | `remote_repair_or_config` | `software_installation` | `monitoring` | `security_monitoring` | `managed_bundle`), with `it_support`: what the engagement is. Absent means `managed_bundle`.
+- `includes_prewritten_software_access` (boolean), with `transaction_type: "web_hosting"`: `true` when the plan gives the buyer vendor software beyond an incidental control panel or file manager (site builder, CMS or app platform, email or office suite, managed application).
+- `custom_software_attestation`, required with `work_type: "custom_software"`; without a complete one the sale is answered as prewritten software / SaaS. Required keys: `written_for_buyer`, `not_offered_to_others`, `deliverable` (`source_code` | `compiled_artifact` | `hosted`), `is_modification_of_prewritten`. Optional state facts: `separately_stated_charge`, `all_rights_transferred`, `delivery` (`electronic` | `tangible`), `il_requirements_analysis_and_adaptation`, `il_assembled_modules_50pct`.
+- `maintenance_contract`, with `transaction_type: "software_maintenance"`. All keys optional: `mandatory`, `includes_upgrades`, `includes_support`, `separately_itemized`, `itemized_amounts` (`{ updates, support }`, summing to `amount`), `update_delivery` (`electronic` | `tangible`), `support_kind` (`help_desk_only` | `includes_fixes`), `seller_sold_software`, `business_use`.
+
+Both objects are strict, as in the API: an unknown key is refused before the call is sent. The facts are your representation and are recorded with the transaction. `track_payment` does not take them; use `calculate_tax` when you have them.
+
+```
+calculate_tax({
+  role: "seller", amount: 12000, buyer_state: "TX", counterparty_id: "client-42",
+  transaction_type: "saas", work_type: "custom_software",
+  custom_software_attestation: {
+    written_for_buyer: true, not_offered_to_others: true,
+    deliverable: "source_code", is_modification_of_prewritten: false
+  }
+})
+```
+
 **`intent`** (optional, `"estimate"` | `"record"`). Pass `"estimate"` to quote a price before a wallet signs. An estimate is computed and counts toward your monthly quota, but it is never saved to your transaction history, never counts toward nexus revenue, and ignores any idempotency key. With an API key and no `intent`, the call is a `"record"` and is logged. Keyless demo calls are always estimates. The server sends `intent` only when you pass it. It needs the AgentTax API release that accepts `intent` (live on agenttax.io since 2026-10-21).
 
 **`resolution`** in the response says how sure each part of the answer is. `resolution.location`, `resolution.nexus` and `resolution.taxability` each carry a `status` (`resolved`, `partial` or `unknown`), a `basis` (for example `zip_local_rate`, `state_only`, `no_nexus_profile`, `fact_not_declared`) and a `detail` sentence. `total_tax` is always returned, never withheld. If your rule is "unknown means do not charge", branch on the status yourself:

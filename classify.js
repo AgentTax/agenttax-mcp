@@ -1,6 +1,9 @@
-// How track_payment turns its arguments into a POST /api/v1/calculate body.
-// Kept apart from index.js (which starts the stdio server on import) so it can
-// be unit-tested.
+// How track_payment turns its arguments into a POST /api/v1/calculate body,
+// plus the enums and classification-fact schema calculate_tax shares with the
+// API. Kept apart from index.js (which starts the stdio server on import) so
+// it can be unit-tested.
+
+import { z } from "zod";
 
 // The work types the AgentTax API accepts (api/_lib/schemas/common.js
 // WORK_TYPES). 1.3.0 adds the five classification work types the API has
@@ -11,6 +14,84 @@ export const WORK_TYPES = [
   "compute", "research", "information_service", "content", "consulting", "trading",
   "payment_processing", "web_hosting", "software_maintenance", "it_support", "custom_software",
 ];
+
+// The transaction types the AgentTax API accepts (api/_lib/schemas/common.js
+// TRANSACTION_TYPES), including the four classification types the API has
+// taken since 2026-10-16.
+export const TRANSACTION_TYPES = [
+  "compute", "api_access", "data_purchase", "saas", "ai_labor", "storage",
+  "digital_good", "consulting", "data_processing", "cloud_infrastructure",
+  "ai_model_access", "marketplace_fee", "subscription", "license", "service",
+  "payment_processing_fee", "web_hosting", "software_maintenance", "it_support",
+];
+
+// digital_content_type values (api/_lib/schemas/common.js DIGITAL_CONTENT_TYPES).
+export const DIGITAL_CONTENT_TYPES = [
+  "ebook", "audio", "video", "art_image", "photograph", "printable_document", "software", "data", "other",
+];
+
+// Classification-fact enums, copied from api/_lib/schemas/common.js. Pinned
+// against the API by test/enum-parity.test.js.
+export const PAYMENT_PROVIDER_TYPES = [
+  "bank", "licensed_money_transmitter", "card_network", "processor_routing_to_bank_or_network", "other",
+];
+export const IT_SUPPORT_SCOPES = [
+  "help_desk_advice", "remote_repair_or_config", "software_installation", "monitoring", "security_monitoring", "managed_bundle",
+];
+export const MAINTENANCE_UPDATE_DELIVERY = ["electronic", "tangible"];
+export const MAINTENANCE_SUPPORT_KINDS = ["help_desk_only", "includes_fixes"];
+export const CUSTOM_SOFTWARE_DELIVERABLES = ["source_code", "compiled_artifact", "hosted"];
+export const CUSTOM_SOFTWARE_DELIVERY = ["electronic", "tangible"];
+
+// The optional classification facts calculate_tax forwards to the API.
+// Names, nesting, enum values and strictness match calculateRequest in
+// api/_lib/schemas/calculate.js; the API decides what each fact does to the
+// answer. Every field is optional: absent means the API's conservative
+// default.
+export const CLASSIFICATION_FACTS_SHAPE = {
+  payment_provider_type: z.enum(PAYMENT_PROVIDER_TYPES).optional()
+    .describe("With transaction_type payment_processing_fee: who provides the payment processing. " +
+      "Changes the answer in some states; absent = the conservative answer. Your representation, recorded with the transaction"),
+  it_support_scope: z.enum(IT_SUPPORT_SCOPES).optional()
+    .describe("With transaction_type or work_type it_support: what the remote IT support engagement is. " +
+      "Absent = managed_bundle, the per-state default; some states answer specific scopes differently"),
+  includes_prewritten_software_access: z.boolean().optional()
+    .describe("With transaction_type web_hosting: true when the plan gives the buyer vendor prewritten software beyond an incidental " +
+      "control panel or file manager (site builder, CMS or app platform, email or office suite, managed application). " +
+      "Absent or false = plain hosting of the buyer's own site or application"),
+  custom_software_attestation: z.object({
+    written_for_buyer: z.boolean(),
+    not_offered_to_others: z.boolean(),
+    deliverable: z.enum(CUSTOM_SOFTWARE_DELIVERABLES),
+    is_modification_of_prewritten: z.boolean(),
+    separately_stated_charge: z.boolean().optional(),
+    all_rights_transferred: z.boolean().optional(),
+    delivery: z.enum(CUSTOM_SOFTWARE_DELIVERY).optional(),
+    il_requirements_analysis_and_adaptation: z.boolean().optional(),
+    il_assembled_modules_50pct: z.boolean().optional(),
+  }).strict().optional()
+    .describe("Required with work_type custom_software; without a complete attestation the sale is answered as prewritten software / SaaS. " +
+      "Complete = written_for_buyer true, not_offered_to_others true, deliverable source_code or compiled_artifact (hosted is SaaS), " +
+      "is_modification_of_prewritten set, and separately_stated_charge true when it is a modification. The other fields are state-specific facts. " +
+      "Your representation, recorded with the transaction; not a state safe harbor"),
+  maintenance_contract: z.object({
+    mandatory: z.boolean().optional(),
+    includes_upgrades: z.boolean().optional(),
+    includes_support: z.boolean().optional(),
+    separately_itemized: z.boolean().optional(),
+    update_delivery: z.enum(MAINTENANCE_UPDATE_DELIVERY).optional(),
+    support_kind: z.enum(MAINTENANCE_SUPPORT_KINDS).optional(),
+    seller_sold_software: z.boolean().optional(),
+    business_use: z.boolean().optional(),
+    itemized_amounts: z.object({
+      updates: z.number().nonnegative().finite(),
+      support: z.number().nonnegative().finite(),
+    }).strict().optional(),
+  }).strict().optional()
+    .describe("With transaction_type software_maintenance: facts about a maintenance contract on prewritten software. Every field is optional; " +
+      "a missing fact is answered conservatively (updates assumed included). separately_itemized + itemized_amounts {updates, support} " +
+      "(summing to amount) split the charge where a state taxes the parts differently"),
+};
 
 // transaction_type sent for each work_type. The classification work types
 // have their own transaction types (AGENTS.md "Classification facts");

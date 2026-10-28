@@ -4,7 +4,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createRequire } from "node:module";
 import { z } from "zod";
-import { WORK_TYPES, buildTrackPaymentRequest } from "./classify.js";
+import {
+  WORK_TYPES, TRANSACTION_TYPES, DIGITAL_CONTENT_TYPES, CLASSIFICATION_FACTS_SHAPE, buildTrackPaymentRequest,
+} from "./classify.js";
 
 const { version: PKG_VERSION } = createRequire(import.meta.url)("./package.json");
 
@@ -52,15 +54,6 @@ const STATES = [
 const stateCode = z.preprocess((v) => (typeof v === "string" ? v.toUpperCase() : v), z.enum(STATES));
 const zip5 = z.string().regex(/^\d{5}$/);
 
-const TRANSACTION_TYPES = [
-  "compute", "api_access", "data_purchase", "saas", "ai_labor", "storage",
-  "digital_good", "consulting", "data_processing", "cloud_infrastructure",
-  "ai_model_access", "marketplace_fee", "subscription", "license", "service",
-];
-const DIGITAL_CONTENT_TYPES = [
-  "ebook", "audio", "video", "art_image", "photograph", "printable_document", "software", "data", "other",
-];
-
 const jsonResult = (result) => ({ content: [{ type: "text", text: JSON.stringify(result, null, 2) }] });
 
 function withQuery(path, params) {
@@ -106,8 +99,10 @@ server.registerTool(
       seller_zip: zip5.optional()
         .describe("Seller's 5-digit zip. Required for TX/UT/AZ/TN origin-sourced intrastate sales and intrastate OH license/digital_good sales"),
       work_type: z.enum(WORK_TYPES).optional()
-        .describe("What the agent's work is economically; drives per-state taxability (compute, research, information_service, content, consulting, trading). " +
-          "Pass it only when you know it: it is a declaration. consulting is an exempt professional service in Arizona"),
+        .describe("What the agent's work is economically; drives per-state taxability (compute, research, information_service, content, consulting, trading, " +
+          "payment_processing, web_hosting, software_maintenance, it_support, custom_software). " +
+          "Pass it only when you know it: it is a declaration. consulting is an exempt professional service in Arizona. " +
+          "custom_software needs a complete custom_software_attestation, or it is answered as prewritten software / SaaS"),
       is_b2b: z.boolean().optional().describe("Business-to-business transaction (triggers state B2B rules, e.g. IA, MD)"),
       use_context: z.enum(["enterprise_system", "individual", "mixed"]).optional()
         .describe("Maryland only, with is_b2b=true: whether the purchase is solely for use in an enterprise computer system"),
@@ -117,6 +112,9 @@ server.registerTool(
       intent: z.enum(["estimate", "record"]).optional()
         .describe("\"estimate\" = quote before a wallet signs; nothing is saved to history or nexus revenue; counts toward your quota. " +
           "\"record\" (the default with an API key) logs the calculation. Keyless demo calls are always estimates. Omit it if your AgentTax API does not accept intent yet"),
+      // Classification facts for the five classification work types. Optional;
+      // forwarded verbatim like every other argument.
+      ...CLASSIFICATION_FACTS_SHAPE,
     },
     // Static annotation: with an API key and no intent "estimate", the calculation is logged to your history.
     annotations: WRITES,

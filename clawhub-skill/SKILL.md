@@ -67,7 +67,7 @@ curl -s -X POST https://agenttax.io/api/v1/calculate \
 - `role`: `"buyer"` or `"seller"`
 - `amount`: transaction amount in USD
 - `buyer_state`: 2-letter US state code
-- `transaction_type`: one of `compute`, `api_access`, `data_purchase`, `saas`, `ai_labor`, `storage`, `digital_good`, `consulting`, `data_processing`, `cloud_infrastructure`, `ai_model_access`, `marketplace_fee`, `subscription`, `license`, `service`
+- `transaction_type`: one of `compute`, `api_access`, `data_purchase`, `saas`, `ai_labor`, `storage`, `digital_good`, `consulting`, `data_processing`, `cloud_infrastructure`, `ai_model_access`, `marketplace_fee`, `subscription`, `license`, `service`, `payment_processing_fee`, `web_hosting`, `software_maintenance`, `it_support`
 - `counterparty_id`: identifier for the other party
 
 **Optional fields:**
@@ -75,6 +75,12 @@ curl -s -X POST https://agenttax.io/api/v1/calculate \
 - `work_type`: `compute`, `research`, `information_service`, `content`, `consulting`, `trading`, `payment_processing`, `web_hosting`, `software_maintenance`, `it_support`, `custom_software` (drives per-state classification). Send it only when you know it: it is a declared fact, not a guess. `consulting` is an exempt professional service in Arizona, and the `consulting` / `trading` exemptions apply only to a declared work type. Send it for an exact answer
 - `is_b2b`: `true`/`false` (affects rates in MD, IA)
 - `seller_remitting`: `true`/`false` (whether seller is collecting tax)
+- Classification facts, each for one classification type; absent = the conservative answer:
+  - `payment_provider_type` (with `payment_processing_fee`): `bank`, `licensed_money_transmitter`, `card_network`, `processor_routing_to_bank_or_network`, `other`
+  - `it_support_scope` (with `it_support`): `help_desk_advice`, `remote_repair_or_config`, `software_installation`, `monitoring`, `security_monitoring`, `managed_bundle` (the default)
+  - `includes_prewritten_software_access` (with `web_hosting`): `true` when the plan includes vendor software beyond a control panel or file manager
+  - `custom_software_attestation` (required with work_type `custom_software`, or the sale is answered as SaaS): `written_for_buyer`, `not_offered_to_others`, `deliverable` (`source_code` | `compiled_artifact` | `hosted`), `is_modification_of_prewritten`; optional `separately_stated_charge`, `all_rights_transferred`, `delivery`, `il_requirements_analysis_and_adaptation`, `il_assembled_modules_50pct`
+  - `maintenance_contract` (with `software_maintenance`), all optional: `mandatory`, `includes_upgrades`, `includes_support`, `separately_itemized`, `itemized_amounts` `{updates, support}`, `update_delivery`, `support_kind` (`help_desk_only` | `includes_fixes`), `seller_sold_software`, `business_use`. Unknown keys in either object are rejected
 - `intent`: `"estimate"` or `"record"`. `"estimate"` quotes before a wallet signs: nothing is saved to history or nexus revenue, but it counts toward your monthly calls. Keyed calls default to `"record"`. Needs the AgentTax API release that accepts `intent`; until then omit it
 
 **Response includes:** `total_tax`, `combined_rate`, `jurisdiction`, `audit_trail`, `confidence`, `advisories`, and (from the same API release) `resolution`. `resolution.location`, `resolution.nexus` and `resolution.taxability` each carry `status` (`resolved` | `partial` | `unknown`), `basis` and `detail`. `total_tax` is always returned; to treat "unknown" as "do not charge", branch on `resolution.*.status`.
