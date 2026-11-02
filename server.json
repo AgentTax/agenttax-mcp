@@ -20,7 +20,7 @@
       "environmentVariables": [
         {
           "name": "AGENTTAX_API_KEY",
-          "description": "AgentTax API key (free tier at agenttax.io). Optional: without it the server runs in demo mode, 50 calls/day.",
+          "description": "AgentTax API key (free tier at agenttax.io). Optional: without it the server runs in demo mode, 10 calls/day.",
           "isRequired": false,
           "isSecret": true
         }

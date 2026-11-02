@@ -80,7 +80,7 @@ Add to your MCP config file:
 }
 ```
 
-Demo mode works without a key (50 calls/day, no account required). Tools marked "Yes" below need `AGENTTAX_API_KEY`.
+Demo mode works without a key (10 calls/day, no account required). Tools marked "Yes" below need `AGENTTAX_API_KEY`.
 
 ---
 
