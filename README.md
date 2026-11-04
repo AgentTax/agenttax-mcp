@@ -89,7 +89,7 @@ Demo mode works without a key (10 calls/day, no account required). Tools marked 
 | Tool | What it does | Key needed |
 |---|---|---|
 | `track_payment` | Log a payment you received and get your sales tax liability. The main tool for paid MCP servers and APIs. | Demo works; key for history |
-| `calculate_tax` | Full sales/use tax calculation with jurisdiction breakdown, audit trail, confidence score and advisories | Demo works; key for full response |
+| `calculate_tax` | Sales/use tax calculation. Keyless: an estimate (total, rates, confidence, `resolution`). Free key: adds jurisdiction breakdown, audit trail, advisories with citations | Demo works (estimate); key for full response |
 | `ingest_transactions` | Bulk-log up to 100 transactions (e.g. x402 purchases), idempotent on `external_tx_id` | Yes |
 | `list_transactions` | Your transaction history with running totals | Yes |
 | `get_nexus_thresholds` | Each state's economic nexus thresholds (revenue / transaction count), notes and DOR source | No |
@@ -120,7 +120,7 @@ track_payment({
 })
 ```
 
-Returns `tax_owed`, `tax_rate`, `taxable`, `transaction_id`, a `classification` (where the work type came from) and a `compliance_note`. Sellers get $0 in states where no nexus is configured; the response says so in `nexus_warning`.
+Returns `tax_owed`, `tax_rate`, `taxable`, `transaction_id`, a `classification` (where the work type came from) and a `compliance_note`. Sellers get $0 in states where no nexus is configured. That $0 is a default, not a determination, and the response says so: `nexus_status` (`unknown` / `no_nexus_profile`), `tax_if_nexus` (what the payment owes once nexus is set), `nexus_warning` (the API's NEXUS_NOT_CONFIGURED advisory or demo note) and a `compliance_note` such as "No sales tax collected because no nexus is configured for WA ... If you have nexus in WA, this payment owes $6.50 (6.5%)." Keyless calls use AgentTax's shared demo nexus profile, not yours.
 
 **Pass `work_type` explicitly** (`compute` | `research` | `information_service` | `content` | `consulting` | `trading` | `payment_processing` | `web_hosting` | `software_maintenance` | `it_support` | `custom_software`) when you know what you sold. The last five are the classification work types the API added in October 2026: a payment or facilitator fee, hosting the buyer's own site, a software maintenance contract, IT support, and software written for one buyer. Each sends its own `transaction_type` and the API answers with that state's rule for it. It is a declaration and gives the exact answer, and it is the only way the consulting or trading exemption applies: for example, AI consulting sold to an Arizona buyer is an exempt professional service (A.R.S. §42-5061(A)(1), TPR 93-48), so `work_type: "consulting"` returns $0 in AZ. Without `work_type` the server guesses from `description`, but a guess never takes the consulting or trading exemption: a description that looks like consulting (e.g. "SOC 2 audit platform subscription") or trading is taxed as SaaS, and `classification.note` tells you to resend with `work_type` if the guess was right. A description that looks like compute or research keeps the 1.1.1 classification, which can tax less than SaaS in some states (e.g. CT, MD, SC, TN, WV); pass `work_type` for an exact answer. Leave `is_b2b` out when you don't know the buyer; `false` declares a consumer. Upgrading from 1.1.1? Some `track_payment` results change; see [CHANGELOG.md](CHANGELOG.md).
 

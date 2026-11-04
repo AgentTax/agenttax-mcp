@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { WORK_TYPES } from "../classify.js";
+import { WORK_TYPES, TRANSACTION_TYPES } from "../classify.js";
 
 // The order is the order index.js registers them in; the set is what matters.
 export const TOOL_NAMES = [
@@ -90,4 +90,35 @@ test("calculate_tax and track_payment accept every work_type the API accepts", a
     const values = wt.enum || wt.anyOf?.find((x) => x.enum)?.enum;
     assert.deepEqual(values, API_WORK_TYPES, `${name} work_type enum`);
   }
+});
+
+test("transaction_type and work_type descriptions name every value the API accepts", async () => {
+  const tools = await listTools();
+  const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
+  // The JSON Schema enums are the contract; the prose lists must not lag them.
+  for (const name of ["calculate_tax", "track_payment"]) {
+    const desc = byName[name].inputSchema.properties.work_type.description;
+    for (const wt of API_WORK_TYPES) assert.ok(desc.includes(wt), `${name} work_type description omits ${wt}`);
+  }
+  for (const [name, tt] of [
+    ["calculate_tax", byName.calculate_tax.inputSchema.properties.transaction_type],
+    ["ingest_transactions", byName.ingest_transactions.inputSchema.properties.records.items.properties.transaction_type],
+  ]) {
+    for (const t of ["payment_processing_fee", "web_hosting", "software_maintenance", "it_support"]) {
+      assert.ok(tt.enum.includes(t), `${name} transaction_type enum omits ${t}`);
+    }
+    assert.deepEqual(tt.enum, TRANSACTION_TYPES, `${name} transaction_type enum`);
+  }
+});
+
+test("calculate_tax does not promise keyless callers what a keyless call omits", async () => {
+  const desc = (await listTools()).find((t) => t.name === "calculate_tax").description;
+  // The keyless (demo) response has no audit trail, jurisdiction breakdown or
+  // advisories (api/v1/calculate.js demo strip); the description must say a
+  // key adds them, not promise them unconditionally.
+  assert.match(desc, /Without an API key[^.]*estimate/);
+  assert.match(desc, /no jurisdiction breakdown, audit trail, citation or advisories/);
+  assert.match(desc, /free API key adds[^.]*audit trail/);
+  assert.doesNotMatch(desc, /^[^.]*Returns tax amount, rate, jurisdiction, audit trail/);
+  assert.doesNotMatch(desc, /nexus_warning/); // never a top-level field of the API response
 });
