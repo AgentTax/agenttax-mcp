@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.1
+
+Accuracy fixes. No request changes; `track_payment` responses gain fields and its note is corrected.
+
+- **`track_payment` no longer reports a no-nexus $0 as "No sales tax owed".** It read a top-level `nexus_warning` the API never returns, so a seller with no nexus answer for the buyer's state (every keyless call outside the shared demo nexus profile) got "No sales tax owed in FL for this transaction type." The note now says the $0 is a default, not a determination, and gives the amount owed once nexus is set (e.g. "If you have nexus in WA, this payment owes $6.50 (6.5%)"). New response fields: `tax_if_nexus`, `nexus_status` (from `resolution.nexus`), `exemption`, `resolution`, `mode`, and `demo_note` on keyless calls. `nexus_warning` now carries the API's `NEXUS_NOT_CONFIGURED` advisory (keyed) or `nexus_note` (keyless). A $0 resting on your own `hasNexus: false` says so; a genuinely exempt sale still says "No sales tax owed". An unresolved `resolution.taxability` is appended to the note.
+- `track_payment` `tax_rate` is the rate that produced `tax_owed` (`applied_rate`). Keyless calls used to show the location rate next to a $0.
+- **`calculate_tax` description is accurate for keyless calls.** It promised jurisdiction, audit trail and advisories; a keyless call returns an estimate (`total_tax`, `combined_rate`, `applied_rate`, `confidence`, `resolution`, plus `tax_if_nexus` / `exemption` when a $0 is a default). A free API key adds the jurisdiction breakdown, audit trail, advisories with citations, history and your own nexus. README and ClawHub skill updated to match.
+- `track_payment`'s `work_type` description lists all eleven work types (it named only the first six; the enum already accepted all eleven). Tests now pin the `work_type` descriptions and the `transaction_type` enums on `calculate_tax` and `ingest_transactions` (including `payment_processing_fee`, `web_hosting`, `software_maintenance`, `it_support`) to the API's list.
+
 ## 1.3.0
 
 Adds `intent` and documents `resolution` on `calculate_tax`. No result changes when you omit `intent`.
