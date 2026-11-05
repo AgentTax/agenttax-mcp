@@ -1,0 +1,96 @@
+{
+  "_source": "Live keyless POST https://agenttax.io/api/v1/calculate 2026-11-04 {role:seller, amount:100, buyer_state:FL, transaction_type:saas} (track_payment shape). Verbatim except upgrade.signup.body.agent_name.",
+  "response": {
+    "success": true,
+    "engine_version": "1.5",
+    "transaction_id": "txn_mw2rn2v5_4883b4",
+    "timestamp": "2026-11-04T23:46:43.649Z",
+    "mode": "demo",
+    "role": "seller",
+    "amount": 100,
+    "buyer_state": "FL",
+    "buyer_zip": null,
+    "transaction_type": "saas",
+    "work_type": "content",
+    "classification_basis": "digital_service",
+    "is_b2b": false,
+    "use_context": null,
+    "digital_content_type": null,
+    "classification_facts": {},
+    "total_tax": 0,
+    "combined_rate": 0.06,
+    "applied_rate": 0,
+    "confidence": {
+      "score": 62,
+      "level": "partial"
+    },
+    "resolution": {
+      "location": {
+        "status": "partial",
+        "basis": "state_only",
+        "detail": "No buyer_zip was sent, so only the Florida state rate was used."
+      },
+      "nexus": {
+        "status": "unknown",
+        "basis": "no_nexus_profile",
+        "detail": "No nexus is set for Florida, so sales tax defaulted to zero and tax_if_nexus shows the figure with nexus."
+      },
+      "taxability": {
+        "status": "resolved",
+        "basis": "category_rule",
+        "detail": "Florida treats digital services as not taxable under its category rule."
+      }
+    },
+    "intent": "estimate",
+    "disclaimer": "This calculation is informational only and does not constitute tax advice. Consult a qualified tax professional for compliance decisions.",
+    "nexus_configured_for_state": false,
+    "upgrade": {
+      "message": "Demo mode returns simplified results. Create a free account for full audit trails, jurisdiction details, advisories, transaction history, and nexus monitoring.",
+      "signup": {
+        "method": "POST",
+        "endpoint": "/api/v1/auth/signup",
+        "content_type": "application/json",
+        "body": {
+          "email": "your-email@example.com",
+          "password": "min-8-chars",
+          "agent_name": "example",
+          "agent_work_type": "compute"
+        },
+        "required": [
+          "email",
+          "password",
+          "agent_name",
+          "agent_work_type"
+        ],
+        "field_notes": {
+          "agent_work_type": "required — one of: compute|research|information_service|content|consulting|trading|payment_processing|web_hosting|software_maintenance|it_support|custom_software"
+        },
+        "returns": "api_key (returned once — save it), entity_id",
+        "then": "Add header X-API-Key: <your_key> to all requests"
+      },
+      "free_tier": "1,500 calls/mo at $0 — full response data, persistent state",
+      "pricing_url": "https://agenttax.io/pricing"
+    },
+    "exemption": {
+      "type": "no_nexus",
+      "category": null,
+      "state": "FL",
+      "label": "No Collection Obligation",
+      "statutory_rate": 0.06
+    },
+    "tax_if_nexus": {
+      "total_tax": 0,
+      "combined_rate": 0,
+      "basis": "Hypothetical: what this transaction owes if you have nexus in Florida. Not applied to total_tax."
+    },
+    "nexus_note": {
+      "code": "NEXUS_NOT_CONFIGURED_DEMO",
+      "advisory": "Demo mode has no nexus profile for FL, so this seller-side call defaulted to no collection obligation and returned $0.00. This is a default, not a determination — it is not a finding that you owe nothing in FL. tax_if_nexus is what this transaction owes once nexus is set.",
+      "fix": {
+        "method": "POST",
+        "endpoint": "/api/v1/auth/signup",
+        "note": "Create a free account to configure your own nexus states and get the determination instead of the default."
+      }
+    }
+  }
+}

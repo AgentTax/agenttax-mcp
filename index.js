@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createRequire } from "node:module";
 import { z } from "zod";
 import {
-  WORK_TYPES, TRANSACTION_TYPES, DIGITAL_CONTENT_TYPES, CLASSIFICATION_FACTS_SHAPE, lowerEnum, buildTrackPaymentRequest,
+  WORK_TYPES, TRANSACTION_TYPES, DIGITAL_CONTENT_TYPES, CLASSIFICATION_FACTS_SHAPE, lowerEnum, buildTrackPaymentRequest, summarizeTrackPayment,
 } from "./classify.js";
 
 const { version: PKG_VERSION } = createRequire(import.meta.url)("./package.json");
@@ -79,9 +79,13 @@ server.registerTool(
   {
     title: "Calculate sales or use tax",
     description:
-      "Calculate US sales tax (seller) or use tax (buyer) for an AI agent transaction. Returns tax amount, rate, jurisdiction, " +
-      "audit trail, confidence score, and advisories. Sellers get $0 sales tax in states without configured nexus " +
-      "(see configure_nexus); a $0 total means no collection obligation, not necessarily no tax, so read nexus_warning and advisories. " +
+      "Calculate US sales tax (seller) or use tax (buyer) for an AI agent transaction. " +
+      "Without an API key (demo mode, 10 calls/day) the result is an estimate: total_tax, combined_rate, applied_rate, confidence, resolution, " +
+      "and, when a $0 is a default or an exemption, tax_if_nexus or exemption; there is no jurisdiction breakdown, audit trail, citation or advisories, " +
+      "and seller calls use AgentTax's shared demo nexus profile, not yours. " +
+      "A free API key adds the full response: jurisdiction and sales_tax/use_tax breakdown, audit trail, advisories with citations, history and your own nexus. " +
+      "Sellers get $0 sales tax in states without configured nexus (see configure_nexus); that $0 is a default, not a determination, " +
+      "so read resolution.nexus and tax_if_nexus (the amount owed once nexus is set) before trusting it. " +
       "work_type and transaction_type are sent as you give them and treated as declared facts (e.g. consulting is exempt in Arizona), so do not guess them. " +
       "The response carries resolution.location / resolution.nexus / resolution.taxability, each with status resolved, partial or unknown plus a basis; " +
       "total_tax is always returned, so if you want \"unknown means do not charge\", branch on resolution.*.status. " +
@@ -138,7 +142,8 @@ server.registerTool(
     title: "Track a payment you received",
     description:
       "Track a payment you received and calculate your sales tax liability. Call this after receiving any payment — Stripe, x402, or direct. " +
-      "Calculates tax owed and logs it to your AgentTax account (requires API key for history). " +
+      "Calculates tax owed and logs it to your AgentTax account (requires API key for history; keyless calls are estimates). " +
+      "A $0 because no nexus is configured for the buyer's state is reported as such, with tax_if_nexus (what the payment owes once nexus is set); it is not reported as an untaxed sale. " +
       "Pass work_type when you know what you sold, for an exact answer; it is the only way to get the consulting exemption (AI consulting is exempt in Arizona) or the trading exemption. " +
       "Without it the sale is classified from description: a description that looks like consulting or trading is taxed as SaaS, never exempt; " +
       "one that looks like compute or research keeps that classification, which can tax less than SaaS in some states (e.g. CT, MD, SC, TN, WV).",
@@ -148,7 +153,9 @@ server.registerTool(
       buyer_zip: zip5.optional().describe("Buyer's 5-digit zip code for local tax rates (more precise)"),
       description: z.string().optional().describe("What you sold (e.g. 'API access', 'MCP tool subscription', 'compute credits'). Used only when work_type is not given; a guess never takes the consulting or trading exemption"),
       work_type: z.enum(WORK_TYPES).optional()
-        .describe("What you sold, declared: compute, research, information_service, content, consulting, trading. Overrides description. consulting is an exempt professional service in Arizona"),
+        .describe("What you sold, declared: compute, research, information_service, content, consulting, trading, " +
+          "payment_processing, web_hosting, software_maintenance, it_support, custom_software. Overrides description. " +
+          "consulting is an exempt professional service in Arizona. custom_software is answered as prewritten software / SaaS here (track_payment takes no attestation; use calculate_tax)"),
       payment_id: z.string().regex(/^[A-Za-z0-9_\-.:@]{1,200}$/).optional()
         .describe("Your payment reference ID (Stripe payment_intent ID, x402 receipt, invoice number); letters, digits and _-.:@ only"),
       source: z.enum(["stripe", "x402", "direct", "other"]).optional().describe("Payment processor used"),
@@ -168,26 +175,7 @@ server.registerTool(
         };
       }
 
-      const taxOwed = result.total_tax || 0;
-      const summary = {
-        payment_tracked: true,
-        source: params.source || "unspecified",
-        amount: params.amount,
-        buyer_state: params.buyer_state,
-        tax_owed: taxOwed,
-        tax_rate: result.sales_tax?.rate || result.combined_rate || 0,
-        taxable: taxOwed > 0,
-        work_type: result.work_type,
-        classification,
-        transaction_id: result.transaction_id,
-        nexus_warning: result.nexus_warning,
-        compliance_note: taxOwed > 0
-          ? `$${taxOwed.toFixed(2)} sales tax owed to ${params.buyer_state}. Remit to the state DOR.`
-          : result.nexus_warning
-            ? `No sales tax collected: ${params.buyer_state} is not in your configured nexus states. Use configure_nexus if you have nexus there.`
-            : `No sales tax owed in ${params.buyer_state} for this transaction type.`,
-      };
-
+      const summary = summarizeTrackPayment(params, result, classification);
       return jsonResult(summary);
     } catch (e) {
       return toolError(e);

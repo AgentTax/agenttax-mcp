@@ -205,3 +205,103 @@ export function buildTrackPaymentRequest(params, { now = Date.now } = {}) {
   if (typeof params.is_b2b === "boolean") body.is_b2b = params.is_b2b;
   return { body, classification };
 }
+
+// ── track_payment response ────────────────────────────────────────────────
+// Turns a POST /api/v1/calculate response into the track_payment summary.
+//
+// The API never returns a top-level `nexus_warning`. Through 1.3.0 this tool
+// read one anyway, so every $0 fell through to "No sales tax owed in XX for
+// this transaction type", including a seller with no nexus answer for the
+// state, which is a default and not a determination. What the API does
+// return (api/_lib/schemas/calculate.js, api/v1/calculate.js):
+//   resolution.nexus        {status, basis}: basis no_nexus_profile = nobody
+//                           answered for this state (status unknown);
+//                           configured = the account answered (true or false)
+//   exemption.type          "no_nexus" when the $0 is a no-collection result
+//   tax_if_nexus            {total_tax, combined_rate, basis}: what the sale
+//                           owes once nexus is set; only on an unanswered state
+//   advisories[]            keyed calls: code NEXUS_NOT_CONFIGURED
+//   nexus_note              keyless (demo) calls: code NEXUS_NOT_CONFIGURED_DEMO
+//   applied_rate            the rate that produced total_tax
+//   mode                    "demo" on keyless calls (shared demo nexus profile)
+const money = (n) => `$${Number(n).toFixed(2)}`;
+const pct = (r) => `${Number((Number(r) * 100).toFixed(4))}%`;
+
+export function summarizeTrackPayment(params, result, classification) {
+  const state = params.buyer_state;
+  const taxOwed = Number(result.total_tax) || 0;
+  const demo = result.mode === "demo";
+  const nexusAdvisory = Array.isArray(result.advisories)
+    ? result.advisories.find((a) => a && a.code === "NEXUS_NOT_CONFIGURED")
+    : undefined;
+  const nexusWarning = nexusAdvisory || result.nexus_note || undefined;
+  const nexusRes = result.resolution?.nexus;
+  const exemptionType = result.exemption?.type;
+  const tin = result.tax_if_nexus;
+
+  // The $0 is a default: nobody has said whether the seller has nexus here.
+  const nexusUnanswered = Boolean(
+    tin || nexusWarning || nexusRes?.basis === "no_nexus_profile"
+  );
+  // The $0 rests on the account's own "no nexus" answer for this state.
+  const nexusDeclinedByAccount = !nexusUnanswered && exemptionType === "no_nexus";
+
+  const setNexusFix = demo
+    ? `Keyless demo calls use AgentTax's shared demo nexus profile, not yours: get a free API key at agenttax.io and use configure_nexus to set your own nexus states.`
+    : `If you have nexus in ${state}, set it with configure_nexus and track this payment again.`;
+
+  let complianceNote;
+  if (taxOwed > 0) {
+    complianceNote = `${money(taxOwed)} sales tax owed to ${state}. Remit to the state DOR.`;
+    if (nexusWarning) complianceNote += ` Note: no nexus is configured for ${state}; see nexus_warning.`;
+  } else if (nexusUnanswered) {
+    const head = `No sales tax collected because no nexus is configured for ${state}, so AgentTax defaulted to no collection obligation. ` +
+      `This is a default, not a determination that nothing is owed.`;
+    if (tin && Number(tin.total_tax) > 0) {
+      const rate = tin.combined_rate != null ? ` (${pct(tin.combined_rate)})` : "";
+      complianceNote = `${head} If you have nexus in ${state}, this payment owes ${money(tin.total_tax)}${rate}. ${setNexusFix}`;
+    } else if (tin) {
+      complianceNote = `${head} Even with nexus in ${state}, AgentTax computes ${money(tin.total_tax)} on this payment. ${setNexusFix}`;
+    } else {
+      complianceNote = `${head} ${setNexusFix}`;
+    }
+  } else if (nexusDeclinedByAccount) {
+    complianceNote = demo
+      ? `No sales tax collected: AgentTax's shared demo nexus profile has no nexus in ${state}. ${setNexusFix}`
+      : `No sales tax collected: your nexus settings say you do not have nexus in ${state}. Update them with configure_nexus if that changes.`;
+  } else {
+    complianceNote = `No sales tax owed in ${state} for this transaction type.`;
+  }
+  const taxability = result.resolution?.taxability;
+  if (taxability && taxability.status !== "resolved" && taxability.detail) {
+    complianceNote += ` Taxability is ${taxability.status}: ${taxability.detail}`;
+  }
+
+  const summary = {
+    payment_tracked: true,
+    source: params.source || "unspecified",
+    amount: params.amount,
+    buyer_state: state,
+    tax_owed: taxOwed,
+    tax_rate: result.applied_rate ?? result.sales_tax?.rate ?? (taxOwed > 0 ? result.combined_rate || 0 : 0),
+    taxable: taxOwed > 0,
+    work_type: result.work_type,
+    classification,
+    transaction_id: result.transaction_id,
+    mode: result.mode,
+    nexus_status: nexusRes
+      ? { status: nexusRes.status, basis: nexusRes.basis }
+      : nexusUnanswered
+        ? { status: "unknown", basis: "no_nexus_profile" }
+        : undefined,
+    tax_if_nexus: tin,
+    nexus_warning: nexusWarning,
+    exemption: result.exemption ?? undefined,
+    resolution: result.resolution,
+    compliance_note: complianceNote,
+  };
+  if (demo) {
+    summary.demo_note = "Keyless demo call: an estimate only, nothing was logged to an account. A free API key adds history, your own nexus, and the full response (jurisdiction breakdown, audit trail, advisories).";
+  }
+  return summary;
+}

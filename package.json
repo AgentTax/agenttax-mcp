@@ -1,6 +1,6 @@
 {
   "name": "@agenttax/mcp-server",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "mcpName": "io.github.AgentTax/agenttax-mcp",
   "description": "MCP server for AgentTax — US sales tax, nexus thresholds, capital gains and 1099-DA tools for AI agents",
   "main": "index.js",
@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "start": "node index.js",
-    "test": "node --test test/track-payment.test.js test/tools.test.js test/enum-parity.test.js test/calculate-facts.test.js"
+    "test": "node --test test/track-payment.test.js test/tools.test.js test/enum-parity.test.js test/calculate-facts.test.js test/track-payment-summary.test.js"
   },
   "keywords": [
     "1099-da",
