@@ -1,7 +1,7 @@
 ---
 name: agenttax
 description: Tax compliance for AI agent transactions — sales tax, capital gains, nexus monitoring, 1099 tracking.
-version: 1.3.0
+version: 1.3.1
 metadata:
   openclaw:
     requires:
